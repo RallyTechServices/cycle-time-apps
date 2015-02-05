@@ -22,15 +22,24 @@ Ext.define('CustomApp', {
         dateFormat: 'M dd yyyy',
         tickInterval: 5
     }],
+    dateRangeStore: [
+                    {name: 'Last Complete Month', value: -1},
+                    {name: 'Last 2 Complete Months', value: -2},
+                    {name: 'Last 3 Complete Months', value: -3},
+                    {name: 'Last 6 Complete Months', value: -6},
+                    {name: 'Last 12 Complete Months', value: -12}
+    ],
+    defaultDateRange: -3,
     dataFilters: [],
     launch: function() {
-        this._fetchCycleAndFilterableFields().then({
+        this._fetchFields().then({
             scope: this,
             success: function(){
                 this.logger.log('Valid fields for cycle and filter time', this.cycleFields, this.filterFields); 
                 this._initializeApp(this.cycleFields);
             }
         });
+
     },
     _initializeApp: function(validFields){
         
@@ -61,13 +70,52 @@ Ext.define('CustomApp', {
     },
     _getGroupPrecedence: function(){
         var data = this.down('#cb-from-state').getStore().data;
+
         var group = [];  
         Ext.each(data.items,function(rec){
-            group.push(rec.get('value'));
+            group.push(rec.get('ObjectID'));
         });
         this.logger.log('_getGroupPrecedence',group);
         return group;  
     },
+     _fetchFields: function(){
+         var deferred = Ext.create('Deft.Deferred');
+         
+         var allowed_attribute_types = ['STATE','STRING'];
+         var additional_filterable_fields = ['PlanEstimate'];
+         var valid_fields = [];
+         var filter_fields = [];
+         
+         Rally.data.ModelFactory.getModel({
+             type: 'HierarchicalRequirement',
+             scope: this, 
+             success: function(model) {
+                 //Use the defect model here
+                 this.logger.log('_fetchFields', model.getFields());
+                 
+                 Ext.each(model.getFields(), function(f){
+                     if (f.hidden === false && f.attributeDefinition){
+                         var attr_def = f.attributeDefinition;
+
+                         if (attr_def.Constrained && Ext.Array.contains(allowed_attribute_types, attr_def.AttributeType) && attr_def.ReadOnly == false){
+                             filter_fields.push(attr_def);
+                             valid_fields.push(attr_def);
+                         } else {
+                             if (Ext.Array.contains(additional_filterable_fields, attr_def.ElementName)){
+                                 filter_fields.push(attr_def);
+                             }
+                         }
+                     }
+                 });
+                 this.filterFields = filter_fields;  
+                 this.cycleFields = valid_fields; 
+                 deferred.resolve();
+             }
+         });
+         return deferred;  
+     },
+        
+    
     _fetchCycleAndFilterableFields: function(){
         var deferred = Ext.create('Deft.Deferred');
         var allowed_attribute_types = ['STATE','STRING'];
@@ -99,6 +147,7 @@ Ext.define('CustomApp', {
                             this.logger.log('Attributes loaded success',success, operation, records);
                             Ext.each(records, function(rec){
                                 var data = rec.getData();
+                                console.log('data',data);
                                 if ((data.Constrained  && Ext.Array.contains(allowed_attribute_types, data.AttributeType) && data.ReadOnly == false)){
                                     filter_fields.push(rec);
                                     valid_fields.push(rec);
@@ -118,12 +167,14 @@ Ext.define('CustomApp', {
         });
         return deferred;  
     },
+
     /**
      * Called when the field is updated.  
      */
     _updateDropdowns: function(cb){
         
         if (this.down('#cb-from-state')){
+            this.down('#cb-date-range').destroy();
             this.down('#cb-from-state').destroy();
             this.down('#cb-to-state').destroy();
             this.down('#cb-granularity').destroy();
@@ -137,12 +188,11 @@ Ext.define('CustomApp', {
             itemId: 'cb-from-state',
             model: 'HierarchicalRequirement',
             field: field,
-            allowNoEntry: true,
-            noEntryText: '-- Artifact Creation --',
-            noEntryValue: null,
+            valueField: 'ObjectID',
+            allowNoEntry: false,
             fieldLabel:  'Start',
             labelAlign: 'right',
-            labelWidth: 50,
+            labelWidth: 30,
             margin: 10
         });
         
@@ -153,7 +203,7 @@ Ext.define('CustomApp', {
             field: field,
             fieldLabel:  'End',
             labelAlign: 'right',
-            labelWidth: 50,
+            labelWidth: 30,
             margin: 10
         });
         
@@ -168,9 +218,28 @@ Ext.define('CustomApp', {
             valueField: 'value',
             fieldLabel:  'Granularity',
             labelAlign: 'right',
-            labelWidth: 75,
+            labelWidth: 60,
             margin: 10
         });
+
+        var date_store = Ext.create('Rally.data.custom.Store', {
+            data: this.dateRangeStore
+        });
+
+        this.down('#selector_box').add({
+            xtype: 'rallycombobox',
+            itemId: 'cb-date-range',
+            store: date_store,
+            displayField: 'name',
+            valueField: 'value',
+            fieldLabel:  'Date Range',
+            labelAlign: 'right',
+            labelWidth: 85,
+            width: 250,
+            value: this.defaultDateRange,
+            margin: 10
+        });
+        
         
         this.down('#selector_box').add({
             xtype: 'rallybutton',
@@ -204,7 +273,9 @@ Ext.define('CustomApp', {
         var title_text = 'Average Cycle Time from ' + this._getStartState() + ' to ' + this._getEndState();
         var tick_interval = granularity_rec.get('tickInterval');  
         var end_date = new Date(); 
-        var start_date = Rally.util.DateTime.add(new Date(),"month",-12);
+        
+        var date_range = this.down('#cb-date-range').getValue();
+        var start_date = Rally.util.DateTime.add(new Date(),"month",date_range);
         var start_state = this._getStartState();
         var filters = this.dataFilters;  
         
@@ -272,14 +343,9 @@ Ext.define('CustomApp', {
         });
     },
     _getStoreConfig: function(){
-        var start_state = this._getStartState();
-        var end_state = this._getEndState(); 
-        
         var field = this.down('#cb-field').getValue();
         var fetch = this._getFetchFields();
 
-        var start_date = Rally.util.DateTime.add(new Date(), "Month", -12);
-        
         var find = {
                 "Children": null,
                 "_TypeHierarchy": {$in: ['HierarchicalRequirement','Defect']}
@@ -290,20 +356,25 @@ Ext.define('CustomApp', {
         } else {
             find["Project"]= this.getContext().getProject().ObjectID;
         }
-        
-        var store_config = {
+        this.logger.log('_getStoreConfig');
+        var store_config ={
              find: find,
              fetch: fetch,
-             hydrate: ['ScheduleState', '_TypeHierarchy'],
+             hydrate: ['ScheduleState','_TypeHierarchy'],
              //compress: true,
              sort: {
                  _ValidFrom: 1
              },
              context: this.getContext().getDataContext(),
              limit: 'Infinity',
-             removeUnauthorizedSnapshots: true
-         };
-
+             removeUnauthorizedSnapshots: true,
+             listeners: {
+                 scope: this, 
+                 load: function(store, records, success){
+                     this.logger.log('_getStoreConfig: Load Complete', records.length);
+                 }
+             }
+        }
         return store_config;
     },
     _getFetchFields: function(){
@@ -322,12 +393,14 @@ Ext.define('CustomApp', {
     _filter: function(){
         Ext.create('Rally.technicalservices.dialog.Filter',{
             validFields: this.filterFields,
+            filters: this.dataFilters,
             listeners: {
                 scope: this,
                 customFilter: function(filters){
                     this.logger.log('_filter event fired',filters);
                     this.dataFilters = filters;
                     this._createChart();
+                    
                     
                 }
             }

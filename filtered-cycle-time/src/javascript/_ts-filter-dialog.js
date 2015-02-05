@@ -50,6 +50,9 @@ Ext.define('Rally.technicalservices.dialog.Filter',{
             }]
         }]
     },
+    _initializeSelectedFilters: function(){
+         
+    },
     _getFieldStore: function(){
         //Return a store that includes filterable fields but
         //excludes the field 
@@ -74,16 +77,27 @@ Ext.define('Rally.technicalservices.dialog.Filter',{
                      store: operator_store,
                      margin: 5,
                      width: 80,
-                     allowNoEntry: true,
-                     noEntryText: ''
+                     allowNoEntry: false,
+                     noEntryText: '',
+                     listeners: {
+                         scope: this,
+                         change: function(cb){
+                             cb.bubble(this._validateFilters, this)
+                         }
+                     }
                  });
                  ct.add({
                      xtype: "rallynumberfield",
                      itemId: 'cb-filter-value',
                      margin: 5,
                      width: 80,
-                     allowBlank: true,
-                     
+                     allowBlank: false,
+                     listeners: {
+                         scope: this,
+                         change: function(cb){
+                             cb.bubble(this._validateFilters, this)
+                         }
+                     }
                  });
             } else {
                 ct.add({
@@ -92,10 +106,13 @@ Ext.define('Rally.technicalservices.dialog.Filter',{
                     store: operator_store,
                     margin: 5,
                     width: 80,
-                    allowNoEntry: true,
-                    noEntryText: '',
-                    noEntryValue: null
-                    
+                    allowNoEntry: false,
+                    listeners: {
+                        scope: this,
+                        change: function(cb){
+                            cb.bubble(this._validateFilters, this)
+                        }
+                    }
                 });
 
                 ct.add({
@@ -104,9 +121,13 @@ Ext.define('Rally.technicalservices.dialog.Filter',{
                     model: 'HierarchicalRequirement',
                     field: rec.get('ElementName'),
                     margin: 5,
-                    allowNoEntry: true,
-                    noEntryText: '',
-                    noEntryValue: null
+                    allowNoEntry: false,
+                    listeners: {
+                        scope: this,
+                        change: function(cb){
+                            cb.bubble(this._validateFilters,this)
+                        }
+                    }
                 });
                
             }
@@ -128,16 +149,20 @@ Ext.define('Rally.technicalservices.dialog.Filter',{
                 xtype: "rallybutton",
                 text: '-',
                 scope: this,
-                margin: 5
+                margin: 5,
+                handler: function(btn){
+                    btn.bubble(this._removeRow, this);
+                }
             },{
                 xtype: "rallycombobox",
                 itemId: 'cb-filter-field',
                 store: field_store,
+                displayField: 'Name',
                 valueField: 'ElementName',
                 listeners: {
                     scope: this,
                     select: function(cb){
-                        cb.bubble(this._getOperatorStore)
+                        cb.bubble(this._getOperatorStore, this)
                     }
                 },
                 allowNoEntry: true,
@@ -150,16 +175,36 @@ Ext.define('Rally.technicalservices.dialog.Filter',{
                 itemId: 'cb-filter-operator',
                 store: [],
                 margin: 5,
-                width: 80
+                width: 80,
+                listeners: {
+                    scope: this,
+                    change: function(cb){
+                        cb.bubble(this._validateFilters, this)
+                    }
+                }
             },{
                 xtype: "rallycombobox",
                 itemId: 'cb-filter-value',
                 store: [],
-                margin: 5
+                margin: 5,
+                listeners: {
+                    scope: this,
+                    change: function(cb){
+                        cb.bubble(this._validateFilters, this)
+                    }
+                }
             }],
             
         });
         this.down('#ct-rows').add(row);
+        this._validateFilters(this.down('#ct-rows'));
+    },
+    _removeRow: function(ct){
+        if (ct && ct.itemId && ct.itemId.match(/^ct-row-/)){
+            ct.destroy();
+        }  
+        this._validateFilters(this.down('#ct-rows'));
+
     },
     _getButtonConfig: function() {
         return [{
@@ -175,24 +220,44 @@ Ext.define('Rally.technicalservices.dialog.Filter',{
             cls: "primary rly-small",
             text: "Apply",
             handler: this._onApplyClick,
-            scope: this
+            scope: this,
+            disabled: true 
         }]
     },
     _onCancelClick: function() {
         this.destroy()
     },
-    _validateItem: function(item){
-        return true;  
+    _validateFilters: function(ct){
+        console.log('_validateFilters');
+        var disabled = false; 
+        if (ct && ct.itemId && ct.itemId.match(/^ct-rows/)){
+            if (this.down('#ct-rows').items.items.length == 0){
+                disabled = true; 
+            }
+            Ext.each(this.down('#ct-rows').items.items, function(item){
+                var property = item.down('#cb-filter-field').getValue();
+                var operator = item.down('#cb-filter-operator').getValue();
+                var val = item.down('#cb-filter-value').getValue(); 
+                
+                if (property == null || operator == null || property.length == 0 || operator.length == 0){
+                    disabled = true;  
+                }
+                if (item.down('#cb-filter-value').xtype == 'rallynumberfield'){
+                    if (val == null || val.toString.length == 0){
+                        disabled = true;
+                    }
+                }
+            }, this);
+            this.down('#applyButton').setDisabled(disabled);
+        }
     },
     _onApplyClick: function() {
         var filters = [];  
         Ext.each(this.down('#ct-rows').items.items, function(item){
-             if (this._validateItem(item)){
-                 console.log('item',item);
-                 property = item.down('#cb-filter-field').getValue();
-                 operator = item.down('#cb-filter-operator').getValue();
-                 val = item.down('#cb-filter-value').getValue(); 
-                 
+            property = item.down('#cb-filter-field').getValue();
+            operator = item.down('#cb-filter-operator').getValue();
+            val = item.down('#cb-filter-value').getValue(); 
+
                  if (property && operator && val) {
                      filters.push({
                          property: property,
@@ -200,8 +265,6 @@ Ext.define('Rally.technicalservices.dialog.Filter',{
                          value: val
                      });
                  }
-                 
-             }
         }, this);
 
         this.fireEvent("customfilter", filters);
