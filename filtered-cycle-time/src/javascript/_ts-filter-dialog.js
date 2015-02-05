@@ -16,7 +16,7 @@ Ext.define('Rally.technicalservices.dialog.Filter',{
         return [{
             xtype: "container",
             cls: "custom-filter-header",
-            layout: "column",
+            layout: {type: 'hbox'},
             defaults: {
                 xtype: "component",
                 cls: "filter-panel-label"
@@ -36,7 +36,8 @@ Ext.define('Rally.technicalservices.dialog.Filter',{
             }]
         }, {
             xtype: "container",
-            itemId: "customFilterRows"
+            itemId: "ct-rows",
+            layout: {type: 'vbox'}
         },{
             xtype: "container",
             itemId: 'ct-footer',
@@ -58,7 +59,7 @@ Ext.define('Rally.technicalservices.dialog.Filter',{
     },
     _getOperatorStore: function(ct){
         console.log('bubble',ct);
-        if (ct && ct.itemId && ct.itemId == 'ct-row'){
+        if (ct && ct.itemId && ct.itemId.match(/^ct-row-/)){
             var operator_store = ["="];
             var rec = ct.down('#cb-filter-field').getRecord(); 
             ct.down('#cb-filter-operator').destroy(); 
@@ -116,11 +117,13 @@ Ext.define('Rally.technicalservices.dialog.Filter',{
     _addNewRow: function() {
 
         var field_store = this._getFieldStore();
+        var row_num = this.down('#ct-rows').items.length;
+        var item_id = 'ct-row-' + row_num;
+        console.log(row_num);
         
-        this.down('#customFilterRows').add({
-            xtype: "container",
+        var row = Ext.create('Ext.Container',{
             layout: {type: 'hbox'},
-            itemId: 'ct-row',
+            itemId: item_id,
             items: [{
                 xtype: "rallybutton",
                 text: '-',
@@ -154,7 +157,9 @@ Ext.define('Rally.technicalservices.dialog.Filter',{
                 store: [],
                 margin: 5
             }],
-        })
+            
+        });
+        this.down('#ct-rows').add(row);
     },
     _getButtonConfig: function() {
         return [{
@@ -181,8 +186,7 @@ Ext.define('Rally.technicalservices.dialog.Filter',{
     },
     _onApplyClick: function() {
         var filters = [];  
-        console.log(this.down('#customFilterRows').down('ct-row'));
-        Ext.each(this.down('#customFilterRows').items.items, function(item){
+        Ext.each(this.down('#ct-rows').items.items, function(item){
              if (this._validateItem(item)){
                  console.log('item',item);
                  property = item.down('#cb-filter-field').getValue();

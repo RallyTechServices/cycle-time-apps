@@ -22,6 +22,7 @@ Ext.define('CustomApp', {
         dateFormat: 'M dd yyyy',
         tickInterval: 5
     }],
+    dataFilters: [],
     launch: function() {
         this._fetchCycleAndFilterableFields().then({
             scope: this,
@@ -54,8 +55,7 @@ Ext.define('CustomApp', {
                 select: this._updateDropdowns
             }
         });
-     //   this._addFilter(validFields);
-        
+       
         cb.setValue(this.defaultField);
         this._updateDropdowns(cb);
     },
@@ -118,6 +118,9 @@ Ext.define('CustomApp', {
         });
         return deferred;  
     },
+    /**
+     * Called when the field is updated.  
+     */
     _updateDropdowns: function(cb){
         
         if (this.down('#cb-from-state')){
@@ -193,19 +196,18 @@ Ext.define('CustomApp', {
     _getEndState: function(){
         return this.down('#cb-to-state').getValue();
     },
-    _getGranularityRecord: function(){
-        this.logger.log('_getGranularity', this.down('#cb-granularity').getValue());
-        return this.down('#cb-granularity').getRecord();
-    },
+
     _createChart: function(){
         var field = this.down('#cb-field').getValue();
-        var granularity_rec = this._getGranularityRecord();
+        var granularity_rec = this.down('#cb-granularity').getRecord();
         var granularity = granularity_rec.get('value');  
         var title_text = 'Average Cycle Time from ' + this._getStartState() + ' to ' + this._getEndState();
         var tick_interval = granularity_rec.get('tickInterval');  
         var end_date = new Date(); 
         var start_date = Rally.util.DateTime.add(new Date(),"month",-12);
         var start_state = this._getStartState();
+        var filters = this.dataFilters;  
+        
         this.logger.log('_createChart', field, start_state, this._getEndState(), granularity, start_date, end_date);
         
 //        if (!this._validateSelectedStates()){
@@ -232,7 +234,7 @@ Ext.define('CustomApp', {
                 endDate: end_date,
                 granularity: granularity,
                 dateFormat: granularity_rec.get('dateFormat'),
-                filters: []
+                dataFilters: filters
             }, 
             chartConfig: {
                 chart: {
@@ -274,7 +276,6 @@ Ext.define('CustomApp', {
         var end_state = this._getEndState(); 
         
         var field = this.down('#cb-field').getValue();
-        var prev_field = Ext.String.format('_PreviousValues.{0}', field);
         var fetch = this._getFetchFields();
 
         var start_date = Rally.util.DateTime.add(new Date(), "Month", -12);
@@ -287,14 +288,14 @@ Ext.define('CustomApp', {
         if (this.getContext().getProjectScopeDown()){
             find["_ProjectHierarchy"] = {$in: [this.getContext().getProject().ObjectID]};
         } else {
-            find["Project"] = this.getContext().getProject().ObjectID;
+            find["Project"]= this.getContext().getProject().ObjectID;
         }
         
         var store_config = {
              find: find,
              fetch: fetch,
              hydrate: ['ScheduleState', '_TypeHierarchy'],
-             compress: true,
+             //compress: true,
              sort: {
                  _ValidFrom: 1
              },
@@ -307,16 +308,15 @@ Ext.define('CustomApp', {
     },
     _getFetchFields: function(){
         var field = this.down('#cb-field').getValue();
-        var prev_field = Ext.String.format('_PreviousValues.{0}', field);
-        var fetch_fields = ['ObjectID',field,prev_field,'_TypeHierarchy','_SnapshotNumber'];
+        var fetch_fields = ['ObjectID',field,'_TypeHierarchy','_SnapshotNumber'];
         
         var filter_fields = [];  
-        Ext.each(this.filterFields, function(f){
-            if (f.get('ElementName') != field){
-                filter_fields.push(f.get('ElementName'));
+        Ext.each(this.dataFilters, function(f){
+            if (f.property != field){
+                filter_fields.push(f.property);
             }
         },this);
-        
+        this.logger.log('_getFetchFields', Ext.Array.merge(fetch_fields,filter_fields));
         return Ext.Array.merge(fetch_fields,filter_fields);
     },
     _filter: function(){
@@ -326,10 +326,12 @@ Ext.define('CustomApp', {
                 scope: this,
                 customFilter: function(filters){
                     this.logger.log('_filter event fired',filters);
+                    this.dataFilters = filters;
+                    this._createChart();
                     
                 }
             }
         });
-        
-    }
+    },
+
 });
