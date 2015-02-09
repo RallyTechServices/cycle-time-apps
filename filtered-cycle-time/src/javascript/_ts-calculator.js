@@ -1,5 +1,6 @@
 Ext.define('CycleCalculator', {
-    extend: "Rally.data.lookback.calculator.BaseCalculator",
+//    extend: "Rally.data.lookback.calculator.BaseCalculator",
+    logger: new Rally.technicalservices.Logger(),
     config: {
         cycleField: 'ScheduleState',
         cycleStartValue: 'Defined',
@@ -12,6 +13,9 @@ Ext.define('CycleCalculator', {
         dataFilters: []
     },
     snapsByOid: {},
+    constructor: function (config) {
+        this.mergeConfig(config);
+    },
     runCalculation: function(snapshots) {   
          console.log(snapshots);
          var snaps_by_oid = Rally.technicalservices.Toolbox.aggregateSnapsByOid(snapshots);
@@ -106,7 +110,7 @@ Ext.define('CycleCalculator', {
     },
     _snapMeetsFilterCriteria: function(snap){
         var is_filtered = true;
-        
+        this.logger.log('_snapMeetsFilterCriteria', snap);
         Ext.each(this.dataFilters, function(filter){
             var str_format = "{0} {1} {2}";
             if (isNaN(snap[filter.property]) && isNaN(filter.value)){
@@ -116,9 +120,17 @@ Ext.define('CycleCalculator', {
             if (operator == "="){
                 operator = "==";
             }
-            var str_eval = Ext.String.format(str_format, snap[filter.property], operator, filter.value);
-            is_filtered = eval(str_eval);
-            return is_filtered;
+            
+            var val = filter.value || '';
+            if (val.length == 0){
+                is_filtered = snap[filter.property].length == 0;  
+                this.logger.log('_snapMeetsFilterCriteria should be blank', filter.property, snap[filter.property], is_filtered);
+            } else {
+                var str_eval = Ext.String.format(str_format, snap[filter.property], operator, val);
+                is_filtered = eval(str_eval);
+                this.logger.log('_snapMeetsFilterCriteria eval', filter, str_eval,is_filtered);
+            }
+            return is_filtered;  //if filtered is false, then we want to stop looping.  
         },this);
         
         return is_filtered;  

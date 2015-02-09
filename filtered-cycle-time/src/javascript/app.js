@@ -7,6 +7,11 @@ Ext.define('CustomApp', {
         {xtype:'container',itemId:'selector_box', layout: {type: 'hbox'}},
     //    {xtype:'container',itemId:'filter_box', layout: {type: 'vbox'}, title: 'Filter by', border: 1, style: {borderColor: 'gray', borderStyle: 'solid'}},
         {xtype:'container',itemId:'display_box'},
+        {xtype:'container',
+            itemId:'filter_box',
+            padding: 10, 
+            margin: 10,
+            tpl:'<div class="ts-filter"><b>Applied Filters:</b><br><tpl for=".">{displayProperty} {operator} {value}<br></tpl></div>'},
         {xtype:'tsinfolink'}
     ],
     defaultField: 'ScheduleState',
@@ -70,12 +75,12 @@ Ext.define('CustomApp', {
     },
     _getGroupPrecedence: function(){
         var data = this.down('#cb-from-state').getStore().data;
-
+        
         var group = [];  
         Ext.each(data.items,function(rec){
             group.push(rec.get('ObjectID'));
         });
-        this.logger.log('_getGroupPrecedence',group);
+        this.logger.log('_getGroupPrecedence',this.down('#cb-from-state').getStore(), group);
         return group;  
     },
      _fetchFields: function(){
@@ -96,13 +101,12 @@ Ext.define('CustomApp', {
                  Ext.each(model.getFields(), function(f){
                      if (f.hidden === false && f.attributeDefinition){
                          var attr_def = f.attributeDefinition;
-
                          if (attr_def.Constrained && Ext.Array.contains(allowed_attribute_types, attr_def.AttributeType) && attr_def.ReadOnly == false){
-                             filter_fields.push(attr_def);
+                             filter_fields.push(f);
                              valid_fields.push(attr_def);
                          } else {
                              if (Ext.Array.contains(additional_filterable_fields, attr_def.ElementName)){
-                                 filter_fields.push(attr_def);
+                                 filter_fields.push(f);
                              }
                          }
                      }
@@ -114,59 +118,6 @@ Ext.define('CustomApp', {
          });
          return deferred;  
      },
-        
-    
-    _fetchCycleAndFilterableFields: function(){
-        var deferred = Ext.create('Deft.Deferred');
-        var allowed_attribute_types = ['STATE','STRING'];
-        var additional_filterable_fields = ['PlanEstimate'];
-        var valid_fields = [];
-        var filter_fields = [];
-        /**
-         * Right now, this is only getting fields from a story type, but 
-         * we need to load fields from a defect type, too.
-         */
-        var filters = Ext.create('Rally.data.wsapi.Filter',{
-            property: 'TypePath',
-            value: 'HierarchicalRequirement'
-        });
-        Ext.create('Rally.data.wsapi.Store',{
-            model:  'TypeDefinition',
-            filters: filters,
-            autoLoad: true,
-            fetch: ['Attributes','Name'],
-            listeners: {
-                scope: this, 
-                load: function(store,records,success){
-                    this.logger.log('TypeDefinitions loaded success', success, store, records);
-                    var attributeStore = records[0].getCollection('Attributes').load({
-                        fetch: ['AttributeType','Constrained','Name','ElementName','AllowedQueryOperators', 'RealAttributeType','Type','VisibleOnlyToAdmins','ReadOnly','AllowedValues'],
-                        autoLoad: true, 
-                        scope: this,
-                        callback: function(records, operation, success){
-                            this.logger.log('Attributes loaded success',success, operation, records);
-                            Ext.each(records, function(rec){
-                                var data = rec.getData();
-                                console.log('data',data);
-                                if ((data.Constrained  && Ext.Array.contains(allowed_attribute_types, data.AttributeType) && data.ReadOnly == false)){
-                                    filter_fields.push(rec);
-                                    valid_fields.push(rec);
-                                } else {
-                                    if (Ext.Array.contains(additional_filterable_fields, data.ElementName)){
-                                        filter_fields.push(rec);
-                                    }
-                                }
-                            });
-                            this.filterFields = filter_fields;  
-                            this.cycleFields = valid_fields; 
-                            deferred.resolve();
-                        }
-                    });
-                }
-            }
-        });
-        return deferred;  
-    },
 
     /**
      * Called when the field is updated.  
@@ -270,8 +221,6 @@ Ext.define('CustomApp', {
         var field = this.down('#cb-field').getValue();
         var granularity_rec = this.down('#cb-granularity').getRecord();
         var granularity = granularity_rec.get('value');  
-        var title_text = 'Average Cycle Time from ' + this._getStartState() + ' to ' + this._getEndState();
-        var tick_interval = granularity_rec.get('tickInterval');  
         var end_date = new Date(); 
         
         var date_range = this.down('#cb-date-range').getValue();
@@ -285,28 +234,44 @@ Ext.define('CustomApp', {
 //            alert('The From State must come before the To State.');
 //            return;
 //        }
+
+        this.setLoading('Fetching data...');
+        this.loadSnapshots([this._getStoreConfig('Defect'),this._getStoreConfig('HierarchicalRequirement')]).then({
+            scope: this,
+            success: function(snapshots){
+                var calc = Ext.create('CycleCalculator', {
+                    cycleField: field,
+                    cycleStartValue: start_state,
+                    cycleEndValue: this._getEndState(),
+                    cyclePrecedence: this._getGroupPrecedence(),
+                    startDate: start_date,
+                    endDate: end_date,
+                    granularity: granularity,
+                    dateFormat: granularity_rec.get('dateFormat'),
+                    dataFilters: filters            
+                });
+                this.setLoading(false);
+                var chart_data = calc.runCalculation(snapshots);
+                this._drawChart(chart_data);
+            }
+        });
+    },
+    _drawChart: function(chart_data){
+        this.logger.log('_drawChart');
         
         if (this.down('#rally-chart')){
-            this.down('#rally-chart').destroy();
+            this.down('#rally-chart').destroy(); 
         }
+
+        var granularity_rec = this.down('#cb-granularity').getRecord();
+        var title_text = 'Average Cycle Time from ' + (this._getStartState() || '(None)') + ' to ' + this._getEndState();
+        var tick_interval = granularity_rec.get('tickInterval');  
         
         this.down('#display_box').add({
             xtype: 'rallychart',
             itemId: 'rally-chart',
-            calculatorType: 'CycleCalculator',
-            storeType: 'Rally.data.lookback.SnapshotStore',
-            storeConfig: this._getStoreConfig(start_state),
-            calculatorConfig: {
-                cycleField: field,
-                cycleStartValue: start_state,
-                cycleEndValue: this._getEndState(),
-                cyclePrecedence: this._getGroupPrecedence(),
-                startDate: start_date,
-                endDate: end_date,
-                granularity: granularity,
-                dateFormat: granularity_rec.get('dateFormat'),
-                dataFilters: filters
-            }, 
+            chartData: chart_data, 
+            loadMask: false,
             chartConfig: {
                 chart: {
                     zoomType: 'xy',
@@ -340,15 +305,97 @@ Ext.define('CustomApp', {
                     }
                 },
             }
+        });        
+    },
+    _setFilters: function(filters){
+        this.dataFilters = filters;  
+        this.down('#filter_box').update(filters);
+    },
+    _filter: function(){
+        this.logger.log('_filter', this.filterFields);
+        Ext.create('Rally.technicalservices.dialog.Filter',{
+            validFields: this.filterFields,
+            filters: this.dataFilters,
+            listeners: {
+                scope: this,
+                customFilter: function(filters){
+                    this.logger.log('_filter event fired',filters);
+                    this._setFilters(filters);
+                    this._createChart();
+                }
+            }
         });
     },
-    _getStoreConfig: function(){
+    /**
+     * Functions to load the snapshots upfront
+     * 
+     */
+    loadSnapshots: function(storeConfigs){
+        var deferred = Ext.create('Deft.Deferred');  
+        this.logger.log('loadSnapshots', storeConfigs);
+
+        var promises = []; 
+        Ext.each(storeConfigs, function(storeConfig){
+            promises.push(this._loadStore(storeConfig));
+        }, this);
+        
+        Deft.Promise.all(promises).then({
+            scope: this,
+            success: function(snapshots){
+                this.logger.log('loadSnapshots success', snapshots);
+                var hydrated_snaps = [];  
+                for(var i=0; i< snapshots.length; i++){
+                    var type = storeConfigs[i]["find"]["_TypeHierarchy"];
+                    //Now we will hydrate the type ourselves
+                    hydrated_snaps.push(_.map(snapshots[i],function(snap){
+                        var obj = snap.getData();
+                        obj["_TypeHierarchy"] = [type];
+                        return obj;
+                    }));
+                    
+                }
+                hydrated_snaps = _.flatten(hydrated_snaps);
+                deferred.resolve(hydrated_snaps);
+            }
+        });
+        return deferred; 
+    },
+    _loadStore: function(storeConfig){
+        var deferred = Ext.create('Deft.Deferred');
+        
+        this.logger.log('_loadStore', storeConfig); 
+        
+        storeConfig = _.extend(storeConfig, {
+            limit: 'Infinity',
+            removeUnauthorizedSnapshots: true,
+            autoLoad: true,
+            sort: {
+                _ValidFrom: 1
+            },
+            listeners: {
+                scope: this, 
+                load: function(store,records,success){
+                    this.logger.log('_loadStore load returned',records.length, success, records);
+                    if (success) {
+                        deferred.resolve(records);
+                    } else {
+                        deferred.resolve([]);
+                    }
+                }
+            }
+        });
+        this.logger.log('_loadStore create store');
+        Ext.create('Rally.data.lookback.SnapshotStore',storeConfig);
+        
+        return deferred; 
+    },
+    _getStoreConfig: function(type){
         var field = this.down('#cb-field').getValue();
         var fetch = this._getFetchFields();
-
+        this.logger.log('_getStoreConfig', type, field, fetch);
         var find = {
                 "Children": null,
-                "_TypeHierarchy": {$in: ['HierarchicalRequirement','Defect']}
+                "_TypeHierarchy": type
             };
         
         if (this.getContext().getProjectScopeDown()){
@@ -356,30 +403,22 @@ Ext.define('CustomApp', {
         } else {
             find["Project"]= this.getContext().getProject().ObjectID;
         }
-        this.logger.log('_getStoreConfig');
         var store_config ={
              find: find,
              fetch: fetch,
-             hydrate: ['ScheduleState','_TypeHierarchy'],
+             hydrate: ['ScheduleState'],
              //compress: true,
              sort: {
                  _ValidFrom: 1
              },
              context: this.getContext().getDataContext(),
-             limit: 'Infinity',
-             removeUnauthorizedSnapshots: true,
-             listeners: {
-                 scope: this, 
-                 load: function(store, records, success){
-                     this.logger.log('_getStoreConfig: Load Complete', records.length);
-                 }
-             }
         }
+        this.logger.log('_getStoreConfig', store_config);
         return store_config;
     },
     _getFetchFields: function(){
         var field = this.down('#cb-field').getValue();
-        var fetch_fields = ['ObjectID',field,'_TypeHierarchy','_SnapshotNumber'];
+        var fetch_fields = ['ObjectID',field,'_TypeHierarchy','_SnapshotNumber','ScheduleState'];
         
         var filter_fields = [];  
         Ext.each(this.dataFilters, function(f){
@@ -389,22 +428,6 @@ Ext.define('CustomApp', {
         },this);
         this.logger.log('_getFetchFields', Ext.Array.merge(fetch_fields,filter_fields));
         return Ext.Array.merge(fetch_fields,filter_fields);
-    },
-    _filter: function(){
-        Ext.create('Rally.technicalservices.dialog.Filter',{
-            validFields: this.filterFields,
-            filters: this.dataFilters,
-            listeners: {
-                scope: this,
-                customFilter: function(filters){
-                    this.logger.log('_filter event fired',filters);
-                    this.dataFilters = filters;
-                    this._createChart();
-                    
-                    
-                }
-            }
-        });
     },
 
 });

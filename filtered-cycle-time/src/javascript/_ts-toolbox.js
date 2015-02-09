@@ -72,7 +72,5 @@ Ext.define('Rally.technicalservices.Toolbox',{
             });
             categories[categories.length-1] += "*"; 
             return categories; 
-    },
-
-
+    }
 });
