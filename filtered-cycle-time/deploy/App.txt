@@ -3,11 +3,11 @@
 <head>
     <title>Filtered Cycle Time</title>
     <!--  (c) 2014 Rally Software Development Corp.  All Rights Reserved. -->
-    <!--  Build Date: Thu Feb 05 2015 16:44:58 GMT-0700 (MST) -->
+    <!--  Build Date: Tue Feb 10 2015 14:25:06 GMT-0700 (MST) -->
     
     <script type="text/javascript">
-        var APP_BUILD_DATE = "Thu Feb 05 2015 16:44:58 GMT-0700 (MST)";
-        var CHECKSUM = 25937270485;
+        var APP_BUILD_DATE = "Tue Feb 10 2015 14:25:06 GMT-0700 (MST)";
+        var CHECKSUM = 36697757725;
     </script>
     
     <script type="text/javascript" src="/apps/2.0rc3/sdk.js"></script>
@@ -139,7 +139,8 @@ Ext.define('Rally.technicalservices.Logger',{
 });
 
 Ext.define('CycleCalculator', {
-    extend: "Rally.data.lookback.calculator.BaseCalculator",
+//    extend: "Rally.data.lookback.calculator.BaseCalculator",
+    logger: new Rally.technicalservices.Logger(),
     config: {
         cycleField: 'ScheduleState',
         cycleStartValue: 'Defined',
@@ -149,9 +150,17 @@ Ext.define('CycleCalculator', {
         endDate: null,
         granularity: "month",
         dateFormat: "M yyyy",
-        dataFilters: []
+        dataFilters: [],
+        color: {
+            Defect:'red',
+            HierarchicalRequirement: 'green',
+            Combined: 'blue'
+        }
     },
     snapsByOid: {},
+    constructor: function (config) {
+        this.mergeConfig(config);
+    },
     runCalculation: function(snapshots) {   
          console.log(snapshots);
          var snaps_by_oid = Rally.technicalservices.Toolbox.aggregateSnapsByOid(snapshots);
@@ -170,44 +179,69 @@ Ext.define('CycleCalculator', {
          console.log('cycleTmeDAta',cycle_time_data.length);
          
          var series = [];
-         series.push(this._getSeries(cycle_time_data, date_buckets, this.granularity));  
-         series.push(this._getSeries(cycle_time_data, date_buckets, this.granularity,'HierarchicalRequirement'));  
-         series.push(this._getSeries(cycle_time_data, date_buckets, this.granularity,'Defect'));  
+         console.log(this.color);
+         series.push(this._getSeries(cycle_time_data, date_buckets, this.granularity,undefined,this.color.Combined));  
+         var hr_series = this._getSeries(cycle_time_data, date_buckets, this.granularity,'HierarchicalRequirement',this.color.HierarchicalRequirement);
+         series.push(hr_series);  
          
+         var defect_series = this._getSeries(cycle_time_data, date_buckets, this.granularity,'Defect',this.color.Defect);
+         series.push(defect_series);  
+         
+         series.push(this._getTrendline(hr_series));
+         series.push(this._getTrendline(defect_series));
+
          categories = Rally.technicalservices.Toolbox.formatDateBuckets(date_buckets,this.dateFormat);
          
          return {
             series: series,
             categories: categories
         }
-        //return this.recalculate();
     },
-    recalculate: function(){
-        var date_buckets = Rally.technicalservices.Toolbox.getDateBuckets(this.startDate, this.endDate, this.granularity);
-        console.log('date_buckets',date_buckets);
-        var cycle_time_data = [];
-        
-        Ext.Object.each(this.snapsByOid, function(oid, snaps){
-            var ctd = this._getCycleTimeData(snaps, this.cycleField, this.cycleStartValue, this.cycleEndValue, this.cyclePrecedence);
-            if (ctd.include){
-                cycle_time_data.push(ctd);
+
+    _getTrendline: function(series, color){
+        /**
+         * Regression Equation(y) = a + bx  
+         * Slope(b) = (NΣXY - (ΣX)(ΣY)) / (NΣX2 - (ΣX)2) 
+         * Intercept(a) = (ΣY - b(ΣX)) / N
+         */
+
+        var sum_xy = 0;
+        var sum_x = 0;
+        var sum_y = 0;
+        var sum_x_squared = 0;
+        var n = 0;  
+        for (var i=0; i<series.data.length; i++){
+            if (series.data[i]){
+                sum_xy += series.data[i] * i;
+                sum_x += i;
+                sum_y += series.data[i];
+                sum_x_squared += i * i;
+                n++;
             }
-        },this);
+        }
+        var slope = (n*sum_xy - sum_x * sum_y)/(n*sum_x_squared - sum_x * sum_x);
+        var intercept = (sum_y - slope * sum_x)/n;  
+
+        this.logger.log('trendline data (name, slope, intercept)',series.name, slope, intercept);
         
-        console.log('cycleTimeDAta',cycle_time_data.length);
-        
-        var series = [];
-        series.push(this._getSeries(cycle_time_data, date_buckets, this.granularity));  
-        series.push(this._getSeries(cycle_time_data, date_buckets, this.granularity,'HierarchicalRequirement'));  
-        series.push(this._getSeries(cycle_time_data, date_buckets, this.granularity,'Defect'));  
-        
-        categories = Rally.technicalservices.Toolbox.formatDateBuckets(date_buckets,this.dateFormat);
-        
+        var y = new Array(series.data.length);
+        for (var i =0; i<series.data.length; i++){
+            if (isNaN(intercept) || isNaN(slope)) {
+                y[i] = null;  
+                
+            } else {
+                y[i] = intercept + slope * i;  
+            }
+        }
+        this.logger.log('_getTrendline', y);
         return {
-           series: series,
-           categories: categories
-       }
-        
+             name: series.name + ' trend',
+             color: color,
+             data: y,
+             display: 'line',
+             dashStyle: 'Dash'
+         };
+
     },
     _getCycleTimeData: function(snaps, field, startValue, endValue, precedence){
         var start_index = -1;  
@@ -246,7 +280,7 @@ Ext.define('CycleCalculator', {
     },
     _snapMeetsFilterCriteria: function(snap){
         var is_filtered = true;
-        
+        this.logger.log('_snapMeetsFilterCriteria', snap);
         Ext.each(this.dataFilters, function(filter){
             var str_format = "{0} {1} {2}";
             if (isNaN(snap[filter.property]) && isNaN(filter.value)){
@@ -256,14 +290,22 @@ Ext.define('CycleCalculator', {
             if (operator == "="){
                 operator = "==";
             }
-            var str_eval = Ext.String.format(str_format, snap[filter.property], operator, filter.value);
-            is_filtered = eval(str_eval);
-            return is_filtered;
+            
+            var val = filter.value || '';
+            if (val.length == 0 || snap[filter.property].length == 0){
+                is_filtered = (val.length == 0 && snap[filter.property].length == 0);  
+                this.logger.log('_snapMeetsFilterCriteria filter property or value is blank', filter.property, snap[filter.property], is_filtered);
+            } else {
+                var str_eval = Ext.String.format(str_format, snap[filter.property], operator, val);
+                is_filtered = eval(str_eval);
+                this.logger.log('_snapMeetsFilterCriteria eval', filter, str_eval,is_filtered);
+            }
+            return is_filtered;  //if filtered is false, then we want to stop looping.  
         },this);
         
         return is_filtered;  
     },
-    _getSeries: function(cycle_time_data, date_buckets, granularity, type){
+    _getSeries: function(cycle_time_data, date_buckets, granularity, type, color){
         var series_raw_data = [];
         var series_data = [];
         for (var i=0; i<date_buckets.length; i++){
@@ -291,8 +333,9 @@ Ext.define('CycleCalculator', {
 
         return {
              name: this._getSeriesName(type),
+             color: color,
              data: series_data,
-             display: 'line'
+          //   display: 'line'
          };
     },
     _getSeriesName: function(type){
@@ -304,10 +347,11 @@ Ext.define('CycleCalculator', {
             }
         }
         return Ext.String.format(type_text);   
-    }
+    },
 });
 Ext.define('Rally.technicalservices.dialog.Filter',{
     extend: Rally.ui.dialog.Dialog,
+    logger: new Rally.technicalservices.Logger(),
     autoShow: true,
     componentCls: "rly-popover dark-container",
     validFields: [],
@@ -315,10 +359,209 @@ Ext.define('Rally.technicalservices.dialog.Filter',{
         this.items = this._getItems();
         this.buttons = this._getButtonConfig();
         this.callParent(arguments);
-        this._addNewRow();
+        this._initializeFilters(this.filters);
         this.addEvents(
                 'customFilter'
         );
+    },
+    _initializeFilters: function(filters){
+        this.logger.log('_initializeFilters', filters);
+        
+        if (filters && filters.length > 0){
+            Ext.each(filters, function(filter){
+                this._addNewRow(filter.property, filter.operator, filter.value);
+            },this);
+        } else {
+            this._addNewRow();
+        }
+    },
+    _getFieldStore: function(){
+        var fields = []; 
+        Ext.each(this.validFields, function(field){
+            fields.push({
+                name: field.name,
+                displayName: field.displayName,
+                attributeType: field.attributeDefinition.AttributeType,
+                schemaType: field.attributeDefinition.SchemaType,
+                modelType: field.modelType,
+                isConstrained: field.attributeDefinition.Constrained  
+            });
+        },this);
+        
+        return Ext.create('Rally.data.custom.Store',{
+            data: fields
+        });
+    },
+    _addNewRow: function(property, operator, value) {
+        this.logger.log('_addNewRow', property, operator, value);
+        
+        var field_store = this._getFieldStore();
+        var items = [];  
+        items.push({
+            xtype: "rallybutton",
+            itemId: 'btn-remove',
+            text: '-',
+            scope: this,
+            margin: 5,
+            handler: function(btn){
+                btn.bubble(this._removeRow, this);
+            }
+        });
+
+        items.push({
+            xtype: "rallycombobox",
+            itemId: 'cb-filter-field',
+            store: field_store,
+            displayField: 'displayName',
+            valueField: 'name',
+            listeners: {
+                scope: this,
+                select: function(cb){
+                    this._updateFilterCombos(cb, operator, value);
+                },
+                ready: function(cb){
+                    if (property) {
+                        cb.setValue(property);
+                        this._updateFilterCombos(cb,operator,value);
+                    }
+                }
+            },
+            allowNoEntry: true,
+            noEntryText: 'Choose Field...',
+            noEntryValue: null,
+            margin: 5,
+            value: null
+        });
+        
+        var row = Ext.create('Ext.Container',{
+            layout: {type: 'hbox'},
+            items: items
+            
+        });
+        this.down('#ct-rows').add(row);
+        this._validateFilters();
+    },
+    _updateFilterCombos: function(cb, operator, value){
+        var parent_ct = cb.up(null,1); 
+        var rec = cb.getRecord(); 
+
+        this.logger.log('_updateFilterCombos', cb.itemId, rec, operator, value);
+        
+        if (parent_ct){
+            if (parent_ct.down('#cb-filter-operator')) {
+                parent_ct.down('#cb-filter-operator').destroy(); 
+                parent_ct.down('#cb-filter-value').destroy(); 
+            }
+
+
+            var op_val = operator || '=';
+            var operator_ctl = this._getOperatorControl(rec, op_val, 'cb-filter-operator');
+            parent_ct.add(operator_ctl);
+            
+            var value_val = value || null;
+            var value_ctl = this._getValueControl(rec, value_val, 'cb-filter-value');
+            parent_ct.add(value_ctl);
+
+        }
+    },
+
+    _removeRow: function(btn){
+        var ct = btn.up(null,1); 
+        if (ct){
+            ct.destroy();
+        }  
+        this._validateFilters();
+    },
+    _getButtonConfig: function() {
+        return [{
+            xtype: "rallybutton",
+            itemId: "cancelButton",
+            cls: "secondary rly-small",
+            text: "Cancel",
+            width: 90,
+            handler: this._onCancelClick,
+            scope: this
+        }, {
+            xtype: "rallybutton",
+            itemId: "applyButton",
+            cls: "primary rly-small",
+            text: "Apply",
+            width: 90,
+            handler: this._onApplyClick,
+            scope: this,
+            disabled: true 
+        }]
+    },
+    _onClearAll: function(){
+        this.down('#ct-rows').removeAll(); 
+        this._addNewRow();
+    },
+    _onCancelClick: function() {
+        this.destroy()
+    },
+    _validateFilters: function(ct){
+        var disabled = false; 
+        var add_disabled = false; 
+        
+        var rows = this.down('#ct-rows').items.items;
+        if (rows.length == 0){
+            disabled = true; 
+        }
+        
+        Ext.each(this.down('#ct-rows').items.items, function(item){
+            item.down('#btn-remove').setDisabled(rows.length == 1);
+            
+            var property = null;  
+            if (item.down('#cb-filter-field')){
+                property = item.down('#cb-filter-field').getValue();
+            }
+            var operator = null;  
+            if (item.down('#cb-filter-operator')){
+                operator = item.down('#cb-filter-operator').getValue();
+            }
+            
+            if (property == null || operator == null || property.length == 0 || operator.length == 0){
+                disabled = true, add_disabled = true;  
+            }
+            
+            var val = null;  
+            if (item.down('#cb-filter-value')){
+                val = item.down('#cb-filter-value').getValue() 
+                if (item.down('#cb-filter-value').xtype == 'rallynumberfield'){
+                    if (val == null || val.toString.length == 0){
+                        disabled = true, add_disabled = true;
+                    }
+                }
+            }; 
+            if (rows.length == 1 && property == null && operator == null && val == null){
+                disabled = false;   //clear filters 
+            }
+         }, this);
+        this.logger.log('_validateFilters',disabled);
+        this.down('#applyButton').setDisabled(disabled);
+        this.down('#btn-add').setDisabled(add_disabled);
+    },
+    _onApplyClick: function() {
+        var filters = [];  
+        Ext.each(this.down('#ct-rows').items.items, function(item){
+            if (this.down('#cb-filter-operator')){
+                property = item.down('#cb-filter-field').getValue();
+                operator = item.down('#cb-filter-operator').getValue();
+                val = item.down('#cb-filter-value').getValue(); 
+                display_property = item.down('#cb-filter-field').getRecord().get('displayName');
+                if (property && operator) {
+                    filters.push({
+                        property: property,
+                        operator: operator,
+                        value: val,
+                        displayProperty: display_property
+                    });
+                }
+            }
+        }, this);
+
+        this.fireEvent("customfilter", filters);
+        this.destroy()
     },
     _getItems: function() {
         return [{
@@ -351,232 +594,165 @@ Ext.define('Rally.technicalservices.dialog.Filter',{
             itemId: 'ct-footer',
             items: [{
                 xtype:'rallybutton',
-                text: '+',
+                itemId: 'clearButton',
+                cls: "secondary rly-small",
+                text: 'Clear All',
+                width: 90,
+                align: 'right',
+                margin: '5 5 5 220',
+                scope: this,
+                handler: this._onClearAll
+            },{
+                xtype:'rallybutton',
+                itemId: 'btn-add',
+                text: 'Add New',
+                width: 90,
+                cls: "primary rly-small",
+                align: 'right',
+                
                 margin: 5,
                 scope: this,
                 handler: this._addNewRow
             }]
         }]
     },
-    _initializeSelectedFilters: function(){
-         
-    },
-    _getFieldStore: function(){
-        //Return a store that includes filterable fields but
-        //excludes the field 
-        return Ext.create('Rally.data.custom.Store',{
-            data: this.validFields
-        });
-    },
-    _getOperatorStore: function(ct){
-        console.log('bubble',ct);
-        if (ct && ct.itemId && ct.itemId.match(/^ct-row-/)){
-            var operator_store = ["="];
-            var rec = ct.down('#cb-filter-field').getRecord(); 
-            ct.down('#cb-filter-operator').destroy(); 
-            ct.down('#cb-filter-value').destroy(); 
-            console.log('attributetype', ct.down('#cb-filter-field').getRecord().get('RealAttributeType'));
-            if (ct.down('#cb-filter-field').getRecord().get('AttributeType') == 'QUANTITY'){
-                 operator_store = ["=",">","<",">=","<="];
-                 
-                 ct.add({
-                     xtype: "rallycombobox",
-                     itemId: 'cb-filter-operator',
-                     store: operator_store,
-                     margin: 5,
-                     width: 80,
-                     allowNoEntry: false,
-                     noEntryText: '',
-                     listeners: {
-                         scope: this,
-                         change: function(cb){
-                             cb.bubble(this._validateFilters, this)
-                         }
-                     }
-                 });
-                 ct.add({
-                     xtype: "rallynumberfield",
-                     itemId: 'cb-filter-value',
-                     margin: 5,
-                     width: 80,
-                     allowBlank: false,
-                     listeners: {
-                         scope: this,
-                         change: function(cb){
-                             cb.bubble(this._validateFilters, this)
-                         }
-                     }
-                 });
-            } else {
-                ct.add({
-                    xtype: "rallycombobox",
-                    itemId: 'cb-filter-operator',
-                    store: operator_store,
-                    margin: 5,
-                    width: 80,
-                    allowNoEntry: false,
-                    listeners: {
-                        scope: this,
-                        change: function(cb){
-                            cb.bubble(this._validateFilters, this)
-                        }
-                    }
-                });
-
-                ct.add({
-                    xtype: 'rallyfieldvaluecombobox',
-                    itemId: 'cb-filter-value',
-                    model: 'HierarchicalRequirement',
-                    field: rec.get('ElementName'),
-                    margin: 5,
-                    allowNoEntry: false,
-                    listeners: {
-                        scope: this,
-                        change: function(cb){
-                            cb.bubble(this._validateFilters,this)
-                        }
-                    }
-                });
-               
+    _getOperatorControl: function(field, operatorValue, itemId){
+        this.logger.log('_getOperatorControl',field, operatorValue);
+        var operators = ['='];
+        var operator_value = operatorValue || '=';
+        //We should be able to get these back from the field, but its not consistent
+        //so we are going to cheat and hardcode them
+        if (!field.get('isConstrained')){
+            switch(field.get('attributeType')){
+                case 'STRING':
+                case 'TEXT':
+                    operators = ['=','contains'];
+                    break;
+                case 'DECIMAL':
+                case 'INTEGER':
+                case 'QUANTITY':
+                    operators = ['=','<=','>=','<','>'];
+                    break;  
+                case 'DATE':
+                    operators = ['on','before', 'after'];
             }
-             
-
         }
-    },
-    _addNewRow: function() {
-
-        var field_store = this._getFieldStore();
-        var row_num = this.down('#ct-rows').items.length;
-        var item_id = 'ct-row-' + row_num;
-        console.log(row_num);
         
-        var row = Ext.create('Ext.Container',{
-            layout: {type: 'hbox'},
-            itemId: item_id,
-            items: [{
-                xtype: "rallybutton",
-                text: '-',
+        var op_ctl = {
+            xtype: "rallycombobox",
+            itemId: itemId,
+            store: operators,
+            margin: 5,
+            width: 80,
+            allowNoEntry: false,
+            noEntryText: '',
+            listeners: {
                 scope: this,
-                margin: 5,
-                handler: function(btn){
-                    btn.bubble(this._removeRow, this);
+                change: this._validateFilters,
+                ready: function(cb){
+                    cb.setValue(operator_value);
                 }
-            },{
-                xtype: "rallycombobox",
-                itemId: 'cb-filter-field',
-                store: field_store,
-                displayField: 'Name',
-                valueField: 'ElementName',
-                listeners: {
-                    scope: this,
-                    select: function(cb){
-                        cb.bubble(this._getOperatorStore, this)
+            }
+        };
+        return op_ctl; 
+    },
+    _getValueControl: function(field, value, item_id){
+        this.logger.log('_getValueControl',field)
+        
+        var ctl = {xtype: 'rallytextfield'};
+        var type = field.get('attributeType');
+        var hasAllowedValues = ((type == 'STATE') || (type=='RATING') || field.get('isConstrained'));
+        var schema = field.get('schemaType');
+        var field_name = field.get('name');
+        var model_type = field.get('modelType');
+        
+        switch(type){
+            case 'BOOLEAN':  
+                ctl = {
+                    xtype: 'rallycombobox',
+                    allowNoEntry: false,
+                    store: ['true','false']
+                };
+                break;
+            case 'DATE':
+                ctl = {
+                    xtype: 'rallydatefield',
+                    allowNoEntry: false,
+                };
+                break; 
+            case 'TEXT':
+            case 'STRING':
+            case 'STATE':
+            case 'RATING':
+                if (hasAllowedValues){
+                    ctl = {
+                         xtype: 'rallyfieldvaluecombobox',
+                         model: model_type,
+                         field: field_name,
+                         allowNoEntry: false,
+                    };
+                }
+                break;
+            case 'OBJECT':
+                //Release, Iteration, User, Project, artifact links
+                if (schema == 'Iteration') {
+                    ctl = {
+                          xtype: 'rallyiterationcombobox',
+                          allowNoEntry: false,
+                    };
+                } else if (schema == 'Release') {
+                    ctl = {
+                        xtype: 'rallyreleasecombobox',
+                        allowNoEntry: false,
+                    };
+                } else if (schema == 'User') {
+                  ctl = {
+                        xtype: 'rallyusersearchcombobox',
+                        project: this.getContext().getProject(),
+                        allowNoEntry: false,
+                      };
+                  } else if (schema == 'Project') {
+                      ctl = {
+                              xtype: 'rallyprojectpicker',
+                              allowNoEntry: false,
+                      };
+                    
+                } else if (schema == 'State'){
+                      ctl = {
+                              xtype: 'rallyfieldvaluecombobox',
+                              model: model_name,
+                              field: field_name,
+                              allowNoEntry: false,
+                      };
+                }
+                break;
+            case 'DECIMAL':
+            case 'INTEGER':
+            case 'QUANTITY':
+                ctl = {
+                    xtype: 'rallynumberfield',
+                    allowBlank: false
+                }
+        }
+        _.extend(ctl, {
+            itemId: item_id,
+            margin: 5,
+            listeners: {
+                scope: this,
+                change: this._validateFilters,
+                ready: function(cb){
+                    if (value){
+                        cb.setValue(value);
                     }
                 },
-                allowNoEntry: true,
-                noEntryText: 'Choose Field...',
-                noEntryValue: null,
-                margin: 5,
-                value: null
-            },{
-                xtype: "rallycombobox",
-                itemId: 'cb-filter-operator',
-                store: [],
-                margin: 5,
-                width: 80,
-                listeners: {
-                    scope: this,
-                    change: function(cb){
-                        cb.bubble(this._validateFilters, this)
+                render: function(cb){
+                    if (value){
+                        cb.setValue(value);
                     }
                 }
-            },{
-                xtype: "rallycombobox",
-                itemId: 'cb-filter-value',
-                store: [],
-                margin: 5,
-                listeners: {
-                    scope: this,
-                    change: function(cb){
-                        cb.bubble(this._validateFilters, this)
-                    }
-                }
-            }],
-            
-        });
-        this.down('#ct-rows').add(row);
-        this._validateFilters(this.down('#ct-rows'));
-    },
-    _removeRow: function(ct){
-        if (ct && ct.itemId && ct.itemId.match(/^ct-row-/)){
-            ct.destroy();
-        }  
-        this._validateFilters(this.down('#ct-rows'));
-
-    },
-    _getButtonConfig: function() {
-        return [{
-            xtype: "rallybutton",
-            itemId: "cancelButton",
-            cls: "secondary rly-small",
-            text: "Cancel",
-            handler: this._onCancelClick,
-            scope: this
-        }, {
-            xtype: "rallybutton",
-            itemId: "applyButton",
-            cls: "primary rly-small",
-            text: "Apply",
-            handler: this._onApplyClick,
-            scope: this,
-            disabled: true 
-        }]
-    },
-    _onCancelClick: function() {
-        this.destroy()
-    },
-    _validateFilters: function(ct){
-        console.log('_validateFilters');
-        var disabled = false; 
-        if (ct && ct.itemId && ct.itemId.match(/^ct-rows/)){
-            if (this.down('#ct-rows').items.items.length == 0){
-                disabled = true; 
             }
-            Ext.each(this.down('#ct-rows').items.items, function(item){
-                var property = item.down('#cb-filter-field').getValue();
-                var operator = item.down('#cb-filter-operator').getValue();
-                var val = item.down('#cb-filter-value').getValue(); 
-                
-                if (property == null || operator == null || property.length == 0 || operator.length == 0){
-                    disabled = true;  
-                }
-                if (item.down('#cb-filter-value').xtype == 'rallynumberfield'){
-                    if (val == null || val.toString.length == 0){
-                        disabled = true;
-                    }
-                }
-            }, this);
-            this.down('#applyButton').setDisabled(disabled);
-        }
-    },
-    _onApplyClick: function() {
-        var filters = [];  
-        Ext.each(this.down('#ct-rows').items.items, function(item){
-            property = item.down('#cb-filter-field').getValue();
-            operator = item.down('#cb-filter-operator').getValue();
-            val = item.down('#cb-filter-value').getValue(); 
-
-                 if (property && operator && val) {
-                     filters.push({
-                         property: property,
-                         operator: operator,
-                         value: val
-                     });
-                 }
-        }, this);
-
-        this.fireEvent("customfilter", filters);
-        this.destroy()
+        });
+        return ctl; 
     },
 });
 Ext.define('Rally.technicalservices.Toolbox',{
@@ -653,9 +829,7 @@ Ext.define('Rally.technicalservices.Toolbox',{
             });
             categories[categories.length-1] += "*"; 
             return categories; 
-    },
-
-
+    }
 });
 Ext.define('CustomApp', {
     extend: 'Rally.app.App',
@@ -666,6 +840,11 @@ Ext.define('CustomApp', {
         {xtype:'container',itemId:'selector_box', layout: {type: 'hbox'}},
     //    {xtype:'container',itemId:'filter_box', layout: {type: 'vbox'}, title: 'Filter by', border: 1, style: {borderColor: 'gray', borderStyle: 'solid'}},
         {xtype:'container',itemId:'display_box'},
+        {xtype:'container',
+            itemId:'filter_box',
+            padding: 10, 
+            margin: 10,
+            tpl:'<div class="ts-filter"><b>Applied Filters:</b><br><tpl for=".">{displayProperty} {operator} {value}<br></tpl></div>'},
         {xtype:'tsinfolink'}
     ],
     defaultField: 'ScheduleState',
@@ -701,40 +880,43 @@ Ext.define('CustomApp', {
 
     },
     _initializeApp: function(validFields){
-        
-        var field_store = Ext.create('Rally.data.custom.Store',{
-            data: validFields
+       var field_store = Ext.create('Rally.data.custom.Store', {
+            data: validFields,
+            autoLoad: true
         });
+
         this.logger.log('_initializeApp', validFields);
         
         var cb = this.down('#selector_box').add({
             xtype: 'rallycombobox',
             itemId: 'cb-field',
             store: field_store, 
-            valueField: 'ElementName',
-            displayField: 'Name',
+            valueField: 'name',
+            displayField: 'displayName',
             fieldLabel:  'Field',
             labelAlign: 'right',
             labelWidth: 50,
+            queryMode: 'local',
             margin: 10,
             scope: this,
             listeners: {
                 scope: this,
-                select: this._updateDropdowns
+                select: this._updateDropdowns,
+                ready: function(cb){
+                    cb.setValue(this.defaultField);
+                    this._updateDropdowns(cb);
+                }
             }
         });
-       
-        cb.setValue(this.defaultField);
-        this._updateDropdowns(cb);
     },
     _getGroupPrecedence: function(){
         var data = this.down('#cb-from-state').getStore().data;
-
+        
         var group = [];  
         Ext.each(data.items,function(rec){
             group.push(rec.get('ObjectID'));
         });
-        this.logger.log('_getGroupPrecedence',group);
+        this.logger.log('_getGroupPrecedence',this.down('#cb-from-state').getStore(), group);
         return group;  
     },
      _fetchFields: function(){
@@ -745,92 +927,56 @@ Ext.define('CustomApp', {
          var valid_fields = [];
          var filter_fields = [];
          
-         Rally.data.ModelFactory.getModel({
-             type: 'HierarchicalRequirement',
-             scope: this, 
-             success: function(model) {
-                 //Use the defect model here
-                 this.logger.log('_fetchFields', model.getFields());
-                 
-                 Ext.each(model.getFields(), function(f){
+         var promises = [this._fetchModelFields('HierarchicalRequirement'),this._fetchModelFields('Defect')];
+         Deft.Promise.all(promises).then({
+             scope: this,
+             success: function(fields){
+                 fields = _.flatten(fields);
+                 this.logger.log('_fetchFields success', fields);
+                 var field_names = [];
+                 Ext.each(fields, function(f){
                      if (f.hidden === false && f.attributeDefinition){
                          var attr_def = f.attributeDefinition;
-
-                         if (attr_def.Constrained && Ext.Array.contains(allowed_attribute_types, attr_def.AttributeType) && attr_def.ReadOnly == false){
-                             filter_fields.push(attr_def);
-                             valid_fields.push(attr_def);
-                         } else {
-                             if (Ext.Array.contains(additional_filterable_fields, attr_def.ElementName)){
-                                 filter_fields.push(attr_def);
+                         if (!Ext.Array.contains(field_names, attr_def.ElementName)){
+                             if (attr_def.Constrained && Ext.Array.contains(allowed_attribute_types, attr_def.AttributeType) && attr_def.ReadOnly == false){
+                                 field_names.push(attr_def.ElementName);
+                                 filter_fields.push(f);
+                                 valid_fields.push(f);
+                             } else {
+                                 if (Ext.Array.contains(additional_filterable_fields, attr_def.ElementName)){
+                                     field_names.push(attr_def.ElementName);
+                                     filter_fields.push(f);
+                                 }
                              }
-                         }
+                        }
                      }
                  });
-                 this.filterFields = filter_fields;  
-                 this.cycleFields = valid_fields; 
+                 this.filterFields = _.uniq(filter_fields);  
+                 this.cycleFields = _.uniq(valid_fields); 
                  deferred.resolve();
              }
          });
          return deferred;  
      },
-        
-    
-    _fetchCycleAndFilterableFields: function(){
-        var deferred = Ext.create('Deft.Deferred');
-        var allowed_attribute_types = ['STATE','STRING'];
-        var additional_filterable_fields = ['PlanEstimate'];
-        var valid_fields = [];
-        var filter_fields = [];
-        /**
-         * Right now, this is only getting fields from a story type, but 
-         * we need to load fields from a defect type, too.
-         */
-        var filters = Ext.create('Rally.data.wsapi.Filter',{
-            property: 'TypePath',
-            value: 'HierarchicalRequirement'
-        });
-        Ext.create('Rally.data.wsapi.Store',{
-            model:  'TypeDefinition',
-            filters: filters,
-            autoLoad: true,
-            fetch: ['Attributes','Name'],
-            listeners: {
-                scope: this, 
-                load: function(store,records,success){
-                    this.logger.log('TypeDefinitions loaded success', success, store, records);
-                    var attributeStore = records[0].getCollection('Attributes').load({
-                        fetch: ['AttributeType','Constrained','Name','ElementName','AllowedQueryOperators', 'RealAttributeType','Type','VisibleOnlyToAdmins','ReadOnly','AllowedValues'],
-                        autoLoad: true, 
-                        scope: this,
-                        callback: function(records, operation, success){
-                            this.logger.log('Attributes loaded success',success, operation, records);
-                            Ext.each(records, function(rec){
-                                var data = rec.getData();
-                                console.log('data',data);
-                                if ((data.Constrained  && Ext.Array.contains(allowed_attribute_types, data.AttributeType) && data.ReadOnly == false)){
-                                    filter_fields.push(rec);
-                                    valid_fields.push(rec);
-                                } else {
-                                    if (Ext.Array.contains(additional_filterable_fields, data.ElementName)){
-                                        filter_fields.push(rec);
-                                    }
-                                }
-                            });
-                            this.filterFields = filter_fields;  
-                            this.cycleFields = valid_fields; 
-                            deferred.resolve();
-                        }
-                    });
-                }
-            }
-        });
-        return deferred;  
-    },
+     _fetchModelFields: function(type){
+         var deferred = Ext.create('Deft.Deferred');
+         Rally.data.ModelFactory.getModel({
+             type: type,
+             scope: this, 
+             success: function(model) {
+                 this.logger.log('_fetchModelFields', model.getFields());
+                 deferred.resolve(model.getFields());
 
+             }
+         });
+         return deferred;  
+     },
     /**
      * Called when the field is updated.  
      */
     _updateDropdowns: function(cb){
+        
+        this.logger.log('_updateDropdowns', cb.getValue(), cb.getRecord());
         
         if (this.down('#cb-from-state')){
             this.down('#cb-date-range').destroy();
@@ -840,12 +986,14 @@ Ext.define('CustomApp', {
             this.down('#btn-update').destroy();
             this.down('#btn-filter').destroy();
         }
-        
-        var field = cb.getValue(); 
+       
+        var field = cb.getValue();
+        var model = cb.getRecord().get('modelType');
+       
         this.down('#selector_box').add({
             xtype: 'rallyfieldvaluecombobox',
             itemId: 'cb-from-state',
-            model: 'HierarchicalRequirement',
+            model: model,
             field: field,
             valueField: 'ObjectID',
             allowNoEntry: false,
@@ -858,7 +1006,7 @@ Ext.define('CustomApp', {
         this.down('#selector_box').add({
             xtype: 'rallyfieldvaluecombobox',
             itemId: 'cb-to-state',
-            model: 'HierarchicalRequirement',
+            model: model,
             field: field,
             fieldLabel:  'End',
             labelAlign: 'right',
@@ -929,8 +1077,6 @@ Ext.define('CustomApp', {
         var field = this.down('#cb-field').getValue();
         var granularity_rec = this.down('#cb-granularity').getRecord();
         var granularity = granularity_rec.get('value');  
-        var title_text = 'Average Cycle Time from ' + this._getStartState() + ' to ' + this._getEndState();
-        var tick_interval = granularity_rec.get('tickInterval');  
         var end_date = new Date(); 
         
         var date_range = this.down('#cb-date-range').getValue();
@@ -944,28 +1090,44 @@ Ext.define('CustomApp', {
 //            alert('The From State must come before the To State.');
 //            return;
 //        }
+
+        this.setLoading('Fetching data...');
+        this.loadSnapshots([this._getStoreConfig('Defect'),this._getStoreConfig('HierarchicalRequirement')]).then({
+            scope: this,
+            success: function(snapshots){
+                var calc = Ext.create('CycleCalculator', {
+                    cycleField: field,
+                    cycleStartValue: start_state,
+                    cycleEndValue: this._getEndState(),
+                    cyclePrecedence: this._getGroupPrecedence(),
+                    startDate: start_date,
+                    endDate: end_date,
+                    granularity: granularity,
+                    dateFormat: granularity_rec.get('dateFormat'),
+                    dataFilters: filters            
+                });
+                this.setLoading(false);
+                var chart_data = calc.runCalculation(snapshots);
+                this._drawChart(chart_data);
+            }
+        });
+    },
+    _drawChart: function(chart_data){
+        this.logger.log('_drawChart');
         
         if (this.down('#rally-chart')){
-            this.down('#rally-chart').destroy();
+            this.down('#rally-chart').destroy(); 
         }
+
+        var granularity_rec = this.down('#cb-granularity').getRecord();
+        var title_text = 'Average Cycle Time from ' + (this._getStartState() || '(None)') + ' to ' + this._getEndState();
+        var tick_interval = granularity_rec.get('tickInterval');  
         
         this.down('#display_box').add({
             xtype: 'rallychart',
             itemId: 'rally-chart',
-            calculatorType: 'CycleCalculator',
-            storeType: 'Rally.data.lookback.SnapshotStore',
-            storeConfig: this._getStoreConfig(start_state),
-            calculatorConfig: {
-                cycleField: field,
-                cycleStartValue: start_state,
-                cycleEndValue: this._getEndState(),
-                cyclePrecedence: this._getGroupPrecedence(),
-                startDate: start_date,
-                endDate: end_date,
-                granularity: granularity,
-                dateFormat: granularity_rec.get('dateFormat'),
-                dataFilters: filters
-            }, 
+            chartData: chart_data, 
+            loadMask: false,
             chartConfig: {
                 chart: {
                     zoomType: 'xy',
@@ -990,24 +1152,109 @@ Ext.define('CustomApp', {
                 ],
                 plotOptions: {
                     series: {
+                        dataLabels: {
+                            format: '{y:,.1f}'
+                        },
                         marker: {
-                            enabled: false
+                            enabled: false,
                         }
                     },
                     line: {
-                        connectNulls: true
+                        connectNulls: true,
                     }
                 },
             }
+        });        
+    },
+    _setFilters: function(filters){
+        this.dataFilters = filters;  
+        this.down('#filter_box').update(filters);
+    },
+    _filter: function(){
+        this.logger.log('_filter', this.filterFields);
+        Ext.create('Rally.technicalservices.dialog.Filter',{
+            validFields: this.filterFields,
+            filters: this.dataFilters,
+            listeners: {
+                scope: this,
+                customFilter: function(filters){
+                    this.logger.log('_filter event fired',filters);
+                    this._setFilters(filters);
+                    this._createChart();
+                }
+            }
         });
     },
-    _getStoreConfig: function(){
+    /**
+     * Functions to load the snapshots upfront
+     * 
+     */
+    loadSnapshots: function(storeConfigs){
+        var deferred = Ext.create('Deft.Deferred');  
+        this.logger.log('loadSnapshots', storeConfigs);
+
+        var promises = []; 
+        Ext.each(storeConfigs, function(storeConfig){
+            promises.push(this._loadStore(storeConfig));
+        }, this);
+        
+        Deft.Promise.all(promises).then({
+            scope: this,
+            success: function(snapshots){
+                this.logger.log('loadSnapshots success', snapshots);
+                var hydrated_snaps = [];  
+                for(var i=0; i< snapshots.length; i++){
+                    var type = storeConfigs[i]["find"]["_TypeHierarchy"];
+                    //Now we will hydrate the type ourselves
+                    hydrated_snaps.push(_.map(snapshots[i],function(snap){
+                        var obj = snap.getData();
+                        obj["_TypeHierarchy"] = [type];
+                        return obj;
+                    }));
+                    
+                }
+                hydrated_snaps = _.flatten(hydrated_snaps);
+                deferred.resolve(hydrated_snaps);
+            }
+        });
+        return deferred; 
+    },
+    _loadStore: function(storeConfig){
+        var deferred = Ext.create('Deft.Deferred');
+        
+        this.logger.log('_loadStore', storeConfig); 
+        
+        storeConfig = _.extend(storeConfig, {
+            limit: 'Infinity',
+            removeUnauthorizedSnapshots: true,
+            autoLoad: true,
+            sort: {
+                _ValidFrom: 1
+            },
+            listeners: {
+                scope: this, 
+                load: function(store,records,success){
+                    this.logger.log('_loadStore load returned',records.length, success, records);
+                    if (success) {
+                        deferred.resolve(records);
+                    } else {
+                        deferred.resolve([]);
+                    }
+                }
+            }
+        });
+        this.logger.log('_loadStore create store');
+        Ext.create('Rally.data.lookback.SnapshotStore',storeConfig);
+        
+        return deferred; 
+    },
+    _getStoreConfig: function(type){
         var field = this.down('#cb-field').getValue();
         var fetch = this._getFetchFields();
-
+        this.logger.log('_getStoreConfig', type, field, fetch);
         var find = {
                 "Children": null,
-                "_TypeHierarchy": {$in: ['HierarchicalRequirement','Defect']}
+                "_TypeHierarchy": type
             };
         
         if (this.getContext().getProjectScopeDown()){
@@ -1015,30 +1262,22 @@ Ext.define('CustomApp', {
         } else {
             find["Project"]= this.getContext().getProject().ObjectID;
         }
-        this.logger.log('_getStoreConfig');
         var store_config ={
              find: find,
              fetch: fetch,
-             hydrate: ['ScheduleState','_TypeHierarchy'],
+             hydrate: ['ScheduleState'],
              //compress: true,
              sort: {
                  _ValidFrom: 1
              },
              context: this.getContext().getDataContext(),
-             limit: 'Infinity',
-             removeUnauthorizedSnapshots: true,
-             listeners: {
-                 scope: this, 
-                 load: function(store, records, success){
-                     this.logger.log('_getStoreConfig: Load Complete', records.length);
-                 }
-             }
         }
+        this.logger.log('_getStoreConfig', store_config);
         return store_config;
     },
     _getFetchFields: function(){
         var field = this.down('#cb-field').getValue();
-        var fetch_fields = ['ObjectID',field,'_TypeHierarchy','_SnapshotNumber'];
+        var fetch_fields = ['ObjectID',field,'_TypeHierarchy','_SnapshotNumber','ScheduleState'];
         
         var filter_fields = [];  
         Ext.each(this.dataFilters, function(f){
@@ -1048,22 +1287,6 @@ Ext.define('CustomApp', {
         },this);
         this.logger.log('_getFetchFields', Ext.Array.merge(fetch_fields,filter_fields));
         return Ext.Array.merge(fetch_fields,filter_fields);
-    },
-    _filter: function(){
-        Ext.create('Rally.technicalservices.dialog.Filter',{
-            validFields: this.filterFields,
-            filters: this.dataFilters,
-            listeners: {
-                scope: this,
-                customFilter: function(filters){
-                    this.logger.log('_filter event fired',filters);
-                    this.dataFilters = filters;
-                    this._createChart();
-                    
-                    
-                }
-            }
-        });
     },
 
 });
@@ -1092,6 +1315,9 @@ Ext.define('CustomApp', {
     margin-top: 25px;
     margin-right: 5px;
     cursor: pointer;
+}
+.ts-filter {
+	text-align: center;
 }
     </style>
 

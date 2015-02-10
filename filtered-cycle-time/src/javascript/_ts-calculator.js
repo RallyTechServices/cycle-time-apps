@@ -1,5 +1,6 @@
 Ext.define('CycleCalculator', {
-    extend: "Rally.data.lookback.calculator.BaseCalculator",
+//    extend: "Rally.data.lookback.calculator.BaseCalculator",
+    logger: new Rally.technicalservices.Logger(),
     config: {
         cycleField: 'ScheduleState',
         cycleStartValue: 'Defined',
@@ -9,9 +10,17 @@ Ext.define('CycleCalculator', {
         endDate: null,
         granularity: "month",
         dateFormat: "M yyyy",
-        dataFilters: []
+        dataFilters: [],
+        color: {
+            Defect:'red',
+            HierarchicalRequirement: 'green',
+            Combined: 'blue'
+        }
     },
     snapsByOid: {},
+    constructor: function (config) {
+        this.mergeConfig(config);
+    },
     runCalculation: function(snapshots) {   
          console.log(snapshots);
          var snaps_by_oid = Rally.technicalservices.Toolbox.aggregateSnapsByOid(snapshots);
@@ -30,44 +39,69 @@ Ext.define('CycleCalculator', {
          console.log('cycleTmeDAta',cycle_time_data.length);
          
          var series = [];
-         series.push(this._getSeries(cycle_time_data, date_buckets, this.granularity));  
-         series.push(this._getSeries(cycle_time_data, date_buckets, this.granularity,'HierarchicalRequirement'));  
-         series.push(this._getSeries(cycle_time_data, date_buckets, this.granularity,'Defect'));  
+         console.log(this.color);
+         series.push(this._getSeries(cycle_time_data, date_buckets, this.granularity,undefined,this.color.Combined));  
+         var hr_series = this._getSeries(cycle_time_data, date_buckets, this.granularity,'HierarchicalRequirement',this.color.HierarchicalRequirement);
+         series.push(hr_series);  
          
+         var defect_series = this._getSeries(cycle_time_data, date_buckets, this.granularity,'Defect',this.color.Defect);
+         series.push(defect_series);  
+         
+         series.push(this._getTrendline(hr_series));
+         series.push(this._getTrendline(defect_series));
+
          categories = Rally.technicalservices.Toolbox.formatDateBuckets(date_buckets,this.dateFormat);
          
          return {
             series: series,
             categories: categories
         }
-        //return this.recalculate();
     },
-    recalculate: function(){
-        var date_buckets = Rally.technicalservices.Toolbox.getDateBuckets(this.startDate, this.endDate, this.granularity);
-        console.log('date_buckets',date_buckets);
-        var cycle_time_data = [];
-        
-        Ext.Object.each(this.snapsByOid, function(oid, snaps){
-            var ctd = this._getCycleTimeData(snaps, this.cycleField, this.cycleStartValue, this.cycleEndValue, this.cyclePrecedence);
-            if (ctd.include){
-                cycle_time_data.push(ctd);
+
+    _getTrendline: function(series, color){
+        /**
+         * Regression Equation(y) = a + bx  
+         * Slope(b) = (NΣXY - (ΣX)(ΣY)) / (NΣX2 - (ΣX)2) 
+         * Intercept(a) = (ΣY - b(ΣX)) / N
+         */
+
+        var sum_xy = 0;
+        var sum_x = 0;
+        var sum_y = 0;
+        var sum_x_squared = 0;
+        var n = 0;  
+        for (var i=0; i<series.data.length; i++){
+            if (series.data[i]){
+                sum_xy += series.data[i] * i;
+                sum_x += i;
+                sum_y += series.data[i];
+                sum_x_squared += i * i;
+                n++;
             }
-        },this);
+        }
+        var slope = (n*sum_xy - sum_x * sum_y)/(n*sum_x_squared - sum_x * sum_x);
+        var intercept = (sum_y - slope * sum_x)/n;  
+
+        this.logger.log('trendline data (name, slope, intercept)',series.name, slope, intercept);
         
-        console.log('cycleTimeDAta',cycle_time_data.length);
-        
-        var series = [];
-        series.push(this._getSeries(cycle_time_data, date_buckets, this.granularity));  
-        series.push(this._getSeries(cycle_time_data, date_buckets, this.granularity,'HierarchicalRequirement'));  
-        series.push(this._getSeries(cycle_time_data, date_buckets, this.granularity,'Defect'));  
-        
-        categories = Rally.technicalservices.Toolbox.formatDateBuckets(date_buckets,this.dateFormat);
-        
+        var y = new Array(series.data.length);
+        for (var i =0; i<series.data.length; i++){
+            if (isNaN(intercept) || isNaN(slope)) {
+                y[i] = null;  
+                
+            } else {
+                y[i] = intercept + slope * i;  
+            }
+        }
+        this.logger.log('_getTrendline', y);
         return {
-           series: series,
-           categories: categories
-       }
-        
+             name: series.name + ' trend',
+             color: color,
+             data: y,
+             display: 'line',
+             dashStyle: 'Dash'
+         };
+
     },
     _getCycleTimeData: function(snaps, field, startValue, endValue, precedence){
         var start_index = -1;  
@@ -106,7 +140,7 @@ Ext.define('CycleCalculator', {
     },
     _snapMeetsFilterCriteria: function(snap){
         var is_filtered = true;
-        
+        this.logger.log('_snapMeetsFilterCriteria', snap);
         Ext.each(this.dataFilters, function(filter){
             var str_format = "{0} {1} {2}";
             if (isNaN(snap[filter.property]) && isNaN(filter.value)){
@@ -116,14 +150,22 @@ Ext.define('CycleCalculator', {
             if (operator == "="){
                 operator = "==";
             }
-            var str_eval = Ext.String.format(str_format, snap[filter.property], operator, filter.value);
-            is_filtered = eval(str_eval);
-            return is_filtered;
+            
+            var val = filter.value || '';
+            if (val.length == 0 || snap[filter.property].length == 0){
+                is_filtered = (val.length == 0 && snap[filter.property].length == 0);  
+                this.logger.log('_snapMeetsFilterCriteria filter property or value is blank', filter.property, snap[filter.property], is_filtered);
+            } else {
+                var str_eval = Ext.String.format(str_format, snap[filter.property], operator, val);
+                is_filtered = eval(str_eval);
+                this.logger.log('_snapMeetsFilterCriteria eval', filter, str_eval,is_filtered);
+            }
+            return is_filtered;  //if filtered is false, then we want to stop looping.  
         },this);
         
         return is_filtered;  
     },
-    _getSeries: function(cycle_time_data, date_buckets, granularity, type){
+    _getSeries: function(cycle_time_data, date_buckets, granularity, type, color){
         var series_raw_data = [];
         var series_data = [];
         for (var i=0; i<date_buckets.length; i++){
@@ -151,8 +193,9 @@ Ext.define('CycleCalculator', {
 
         return {
              name: this._getSeriesName(type),
+             color: color,
              data: series_data,
-             display: 'line'
+          //   display: 'line'
          };
     },
     _getSeriesName: function(type){
@@ -164,5 +207,5 @@ Ext.define('CycleCalculator', {
             }
         }
         return Ext.String.format(type_text);   
-    }
+    },
 });
