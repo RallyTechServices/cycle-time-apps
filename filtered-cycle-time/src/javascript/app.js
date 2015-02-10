@@ -295,6 +295,7 @@ Ext.define('CustomApp', {
             itemId: 'rally-chart',
             chartData: chart_data, 
             loadMask: false,
+            chartColors:['#000000','#8bbc21','#c42525','#8bbc21','#c42525'],
             chartConfig: {
                 chart: {
                     zoomType: 'xy',
@@ -320,7 +321,7 @@ Ext.define('CustomApp', {
                 plotOptions: {
                     series: {
                         dataLabels: {
-                            format: '{y:,.1f}'
+                            format: '{point.y:.1f}'
                         },
                         marker: {
                             enabled: false,
@@ -328,6 +329,9 @@ Ext.define('CustomApp', {
                     },
                     line: {
                         connectNulls: true,
+                        tooltip: {
+                            pointFormat: '<span style="color:{series.color}">\u25CF</span> {series.name}: <b>{point.y:.1f}</b><br/>'
+                        }
                     }
                 },
             }
