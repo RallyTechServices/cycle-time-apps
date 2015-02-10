@@ -3,10 +3,10 @@
 <head>
     <title>Filtered Cycle Time</title>
     <!--  (c) 2014 Rally Software Development Corp.  All Rights Reserved. -->
-    <!--  Build Date: Tue Feb 10 2015 14:25:06 GMT-0700 (MST) -->
+    <!--  Build Date: Tue Feb 10 2015 14:41:29 GMT-0700 (MST) -->
     
     <script type="text/javascript">
-        var APP_BUILD_DATE = "Tue Feb 10 2015 14:25:06 GMT-0700 (MST)";
+        var APP_BUILD_DATE = "Tue Feb 10 2015 14:41:29 GMT-0700 (MST)";
         var CHECKSUM = [%= checksum %];
     </script>
     
@@ -180,8 +180,8 @@ Ext.define('CycleCalculator', {
          
          var series = [];
          console.log(this.color);
-         series.push(this._getSeries(cycle_time_data, date_buckets, this.granularity,undefined,this.color.Combined));  
-         var hr_series = this._getSeries(cycle_time_data, date_buckets, this.granularity,'HierarchicalRequirement',this.color.HierarchicalRequirement);
+         series.push(this._getSeries(cycle_time_data, date_buckets, this.granularity,undefined,'black'));  
+         var hr_series = this._getSeries(cycle_time_data, date_buckets, this.granularity,'HierarchicalRequirement','');
          series.push(hr_series);  
          
          var defect_series = this._getSeries(cycle_time_data, date_buckets, this.granularity,'Defect',this.color.Defect);
@@ -1128,6 +1128,7 @@ Ext.define('CustomApp', {
             itemId: 'rally-chart',
             chartData: chart_data, 
             loadMask: false,
+            chartColors:['#000000','#8bbc21','#c42525','#8bbc21','#c42525'],
             chartConfig: {
                 chart: {
                     zoomType: 'xy',
@@ -1153,7 +1154,7 @@ Ext.define('CustomApp', {
                 plotOptions: {
                     series: {
                         dataLabels: {
-                            format: '{y:,.1f}'
+                            format: '{point.y:.1f}'
                         },
                         marker: {
                             enabled: false,
@@ -1161,6 +1162,9 @@ Ext.define('CustomApp', {
                     },
                     line: {
                         connectNulls: true,
+                        tooltip: {
+                            pointFormat: '<span style="color:{series.color}">\u25CF</span> {series.name}: <b>{point.y:.1f}</b><br/>'
+                        }
                     }
                 },
             }

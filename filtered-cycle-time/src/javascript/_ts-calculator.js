@@ -40,8 +40,8 @@ Ext.define('CycleCalculator', {
          
          var series = [];
          console.log(this.color);
-         series.push(this._getSeries(cycle_time_data, date_buckets, this.granularity,undefined,this.color.Combined));  
-         var hr_series = this._getSeries(cycle_time_data, date_buckets, this.granularity,'HierarchicalRequirement',this.color.HierarchicalRequirement);
+         series.push(this._getSeries(cycle_time_data, date_buckets, this.granularity,undefined,'black'));  
+         var hr_series = this._getSeries(cycle_time_data, date_buckets, this.granularity,'HierarchicalRequirement','');
          series.push(hr_series);  
          
          var defect_series = this._getSeries(cycle_time_data, date_buckets, this.granularity,'Defect',this.color.Defect);
