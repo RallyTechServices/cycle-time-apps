@@ -104,13 +104,14 @@ Ext.define('CustomApp', {
                  Ext.each(fields, function(f){
                      if (f.hidden === false && f.attributeDefinition){
                          var attr_def = f.attributeDefinition;
-                        if (!Ext.Array.contains(field_names, attr_def.ElementName)){
+                         if (!Ext.Array.contains(field_names, attr_def.ElementName)){
                              if (attr_def.Constrained && Ext.Array.contains(allowed_attribute_types, attr_def.AttributeType) && attr_def.ReadOnly == false){
                                  field_names.push(attr_def.ElementName);
                                  filter_fields.push(f);
                                  valid_fields.push(f);
                              } else {
                                  if (Ext.Array.contains(additional_filterable_fields, attr_def.ElementName)){
+                                     field_names.push(attr_def.ElementName);
                                      filter_fields.push(f);
                                  }
                              }

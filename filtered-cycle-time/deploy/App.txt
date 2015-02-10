@@ -3,11 +3,11 @@
 <head>
     <title>Filtered Cycle Time</title>
     <!--  (c) 2014 Rally Software Development Corp.  All Rights Reserved. -->
-    <!--  Build Date: Tue Feb 10 2015 12:47:24 GMT-0700 (MST) -->
+    <!--  Build Date: Tue Feb 10 2015 14:15:31 GMT-0700 (MST) -->
     
     <script type="text/javascript">
-        var APP_BUILD_DATE = "Tue Feb 10 2015 12:47:24 GMT-0700 (MST)";
-        var CHECKSUM = 36422619780;
+        var APP_BUILD_DATE = "Tue Feb 10 2015 14:15:31 GMT-0700 (MST)";
+        var CHECKSUM = 36697756560;
     </script>
     
     <script type="text/javascript" src="/apps/2.0rc3/sdk.js"></script>
@@ -292,9 +292,9 @@ Ext.define('CycleCalculator', {
             }
             
             var val = filter.value || '';
-            if (val.length == 0){
-                is_filtered = snap[filter.property].length == 0;  
-                this.logger.log('_snapMeetsFilterCriteria should be blank', filter.property, snap[filter.property], is_filtered);
+            if (val.length == 0 || snap[filter.property].length == 0){
+                is_filtered = (val.length == 0 && snap[filter.property].length == 0);  
+                this.logger.log('_snapMeetsFilterCriteria filter property or value is blank', filter.property, snap[filter.property], is_filtered);
             } else {
                 var str_eval = Ext.String.format(str_format, snap[filter.property], operator, val);
                 is_filtered = eval(str_eval);
@@ -937,13 +937,14 @@ Ext.define('CustomApp', {
                  Ext.each(fields, function(f){
                      if (f.hidden === false && f.attributeDefinition){
                          var attr_def = f.attributeDefinition;
-                        if (!Ext.Array.contains(field_names, attr_def.ElementName)){
+                         if (!Ext.Array.contains(field_names, attr_def.ElementName)){
                              if (attr_def.Constrained && Ext.Array.contains(allowed_attribute_types, attr_def.AttributeType) && attr_def.ReadOnly == false){
                                  field_names.push(attr_def.ElementName);
                                  filter_fields.push(f);
                                  valid_fields.push(f);
                              } else {
                                  if (Ext.Array.contains(additional_filterable_fields, attr_def.ElementName)){
+                                     field_names.push(attr_def.ElementName);
                                      filter_fields.push(f);
                                  }
                              }

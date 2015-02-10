@@ -152,9 +152,9 @@ Ext.define('CycleCalculator', {
             }
             
             var val = filter.value || '';
-            if (val.length == 0){
-                is_filtered = snap[filter.property].length == 0;  
-                this.logger.log('_snapMeetsFilterCriteria should be blank', filter.property, snap[filter.property], is_filtered);
+            if (val.length == 0 || snap[filter.property].length == 0){
+                is_filtered = (val.length == 0 && snap[filter.property].length == 0);  
+                this.logger.log('_snapMeetsFilterCriteria filter property or value is blank', filter.property, snap[filter.property], is_filtered);
             } else {
                 var str_eval = Ext.String.format(str_format, snap[filter.property], operator, val);
                 is_filtered = eval(str_eval);
