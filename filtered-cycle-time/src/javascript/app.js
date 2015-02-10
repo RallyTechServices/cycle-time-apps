@@ -47,31 +47,34 @@ Ext.define('CustomApp', {
 
     },
     _initializeApp: function(validFields){
-        
-        var field_store = Ext.create('Rally.data.custom.Store',{
-            data: validFields
+       var field_store = Ext.create('Rally.data.custom.Store', {
+            data: validFields,
+            autoLoad: true
         });
+
         this.logger.log('_initializeApp', validFields);
         
         var cb = this.down('#selector_box').add({
             xtype: 'rallycombobox',
             itemId: 'cb-field',
             store: field_store, 
-            valueField: 'ElementName',
-            displayField: 'Name',
+            valueField: 'name',
+            displayField: 'displayName',
             fieldLabel:  'Field',
             labelAlign: 'right',
             labelWidth: 50,
+            queryMode: 'local',
             margin: 10,
             scope: this,
             listeners: {
                 scope: this,
-                select: this._updateDropdowns
+                select: this._updateDropdowns,
+                ready: function(cb){
+                    cb.setValue(this.defaultField);
+                    this._updateDropdowns(cb);
+                }
             }
         });
-       
-        cb.setValue(this.defaultField);
-        this._updateDropdowns(cb);
     },
     _getGroupPrecedence: function(){
         var data = this.down('#cb-from-state').getStore().data;
@@ -91,38 +94,55 @@ Ext.define('CustomApp', {
          var valid_fields = [];
          var filter_fields = [];
          
-         Rally.data.ModelFactory.getModel({
-             type: 'HierarchicalRequirement',
-             scope: this, 
-             success: function(model) {
-                 //Use the defect model here
-                 this.logger.log('_fetchFields', model.getFields());
-                 
-                 Ext.each(model.getFields(), function(f){
+         var promises = [this._fetchModelFields('HierarchicalRequirement'),this._fetchModelFields('Defect')];
+         Deft.Promise.all(promises).then({
+             scope: this,
+             success: function(fields){
+                 fields = _.flatten(fields);
+                 this.logger.log('_fetchFields success', fields);
+                 var field_names = [];
+                 Ext.each(fields, function(f){
                      if (f.hidden === false && f.attributeDefinition){
                          var attr_def = f.attributeDefinition;
-                         if (attr_def.Constrained && Ext.Array.contains(allowed_attribute_types, attr_def.AttributeType) && attr_def.ReadOnly == false){
-                             filter_fields.push(f);
-                             valid_fields.push(attr_def);
-                         } else {
-                             if (Ext.Array.contains(additional_filterable_fields, attr_def.ElementName)){
+                        if (!Ext.Array.contains(field_names, attr_def.ElementName)){
+                             if (attr_def.Constrained && Ext.Array.contains(allowed_attribute_types, attr_def.AttributeType) && attr_def.ReadOnly == false){
+                                 field_names.push(attr_def.ElementName);
                                  filter_fields.push(f);
+                                 valid_fields.push(f);
+                             } else {
+                                 if (Ext.Array.contains(additional_filterable_fields, attr_def.ElementName)){
+                                     filter_fields.push(f);
+                                 }
                              }
-                         }
+                        }
                      }
                  });
-                 this.filterFields = filter_fields;  
-                 this.cycleFields = valid_fields; 
+                 this.filterFields = _.uniq(filter_fields);  
+                 this.cycleFields = _.uniq(valid_fields); 
                  deferred.resolve();
              }
          });
          return deferred;  
      },
+     _fetchModelFields: function(type){
+         var deferred = Ext.create('Deft.Deferred');
+         Rally.data.ModelFactory.getModel({
+             type: type,
+             scope: this, 
+             success: function(model) {
+                 this.logger.log('_fetchModelFields', model.getFields());
+                 deferred.resolve(model.getFields());
 
+             }
+         });
+         return deferred;  
+     },
     /**
      * Called when the field is updated.  
      */
     _updateDropdowns: function(cb){
+        
+        this.logger.log('_updateDropdowns', cb.getValue(), cb.getRecord());
         
         if (this.down('#cb-from-state')){
             this.down('#cb-date-range').destroy();
@@ -132,12 +152,14 @@ Ext.define('CustomApp', {
             this.down('#btn-update').destroy();
             this.down('#btn-filter').destroy();
         }
-        
-        var field = cb.getValue(); 
+       
+        var field = cb.getValue();
+        var model = cb.getRecord().get('modelType');
+       
         this.down('#selector_box').add({
             xtype: 'rallyfieldvaluecombobox',
             itemId: 'cb-from-state',
-            model: 'HierarchicalRequirement',
+            model: model,
             field: field,
             valueField: 'ObjectID',
             allowNoEntry: false,
@@ -150,7 +172,7 @@ Ext.define('CustomApp', {
         this.down('#selector_box').add({
             xtype: 'rallyfieldvaluecombobox',
             itemId: 'cb-to-state',
-            model: 'HierarchicalRequirement',
+            model: model,
             field: field,
             fieldLabel:  'End',
             labelAlign: 'right',
@@ -296,12 +318,15 @@ Ext.define('CustomApp', {
                 ],
                 plotOptions: {
                     series: {
+                        dataLabels: {
+                            format: '{y:,.1f}'
+                        },
                         marker: {
-                            enabled: false
+                            enabled: false,
                         }
                     },
                     line: {
-                        connectNulls: true
+                        connectNulls: true,
                     }
                 },
             }
