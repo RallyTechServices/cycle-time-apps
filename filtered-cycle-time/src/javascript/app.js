@@ -3,7 +3,7 @@ Ext.define('CustomApp', {
     componentCls: 'app',
     logger: new Rally.technicalservices.Logger(),
     items: [
-        {xtype:'container',itemId:'message_box',tpl:'Hello, <tpl>{_refObjectName}</tpl>'},
+        {xtype:'container',itemId:'settings_box'},
         {xtype:'container',itemId:'selector_box', layout: {type: 'hbox'}},
     //    {xtype:'container',itemId:'filter_box', layout: {type: 'vbox'}, title: 'Filter by', border: 1, style: {borderColor: 'gray', borderStyle: 'solid'}},
         {xtype:'container',itemId:'display_box'},
@@ -27,6 +27,7 @@ Ext.define('CustomApp', {
         dateFormat: 'M dd yyyy',
         tickInterval: 5
     }],
+    hiddenSeries: [],
     dateRangeStore: [
                     {name: 'Last Complete Month', value: -1},
                     {name: 'Last 2 Complete Months', value: -2},
@@ -41,6 +42,13 @@ Ext.define('CustomApp', {
             scope: this,
             success: function(){
                 this.logger.log('Valid fields for cycle and filter time', this.cycleFields, this.filterFields); 
+
+//                if (this.isExternal()){
+//                    this.showSettings(this.config);
+//                } else {
+//                    this.onSettingsUpdate(this.getSettings());  //(this.config.type,this.config.pageSize,this.config.fetch,this.config.columns);
+//                }        
+
                 this._initializeApp(this.cycleFields);
             }
         });
@@ -282,7 +290,9 @@ Ext.define('CustomApp', {
     _drawChart: function(chart_data){
         this.logger.log('_drawChart');
         
-        if (this.down('#rally-chart')){
+        var me = this;
+        var chart = this.down('#rally-chart')
+        if (chart){
             this.down('#rally-chart').destroy(); 
         }
 
@@ -296,6 +306,15 @@ Ext.define('CustomApp', {
             chartData: chart_data, 
             loadMask: false,
             chartColors:['#000000','#8bbc21','#c42525','#8bbc21','#c42525'],
+            scope: this,
+            updateAfterRender: function()   {      
+                Ext.each(this.chartData.series, function(s){
+                    if (Ext.Array.contains(me.hiddenSeries, s.name)){
+                        s.visible = false;
+                    }
+                });
+            },
+            updateBeforeRender: this._beforeChartRender,
             chartConfig: {
                 chart: {
                     zoomType: 'xy',
@@ -325,7 +344,18 @@ Ext.define('CustomApp', {
                         },
                         marker: {
                             enabled: false,
+                        },
+                        events: {
+                            legendItemClick: function () {
+                                if (this.visible){
+                                    //we are hiding it
+                                    me.hiddenSeries = _.union(me.hiddenSeries, [this.name]);  
+                                } else {
+                                    me.hiddenSeries = _.without(me.hiddenSeries, this.name);
+                                }
+                            }
                         }
+
                     },
                     line: {
                         connectNulls: true,
@@ -334,8 +364,18 @@ Ext.define('CustomApp', {
                         }
                     }
                 },
+
             }
         });        
+    },
+    _afterChartRender: function(hiddenSeries){
+        //update the message if the data is null or all zeros
+    },
+    _beforeChartRender: function(){
+        //update the tooltip data
+        console.log('chart',this);
+        
+        this.chartConfig.plotOptions.line.tooltip.pointFormat = '<span style="color:{series.color}">\u25CF</span> {series.name}: <b>{point.y:.1f} {point.n}</b><br/>';
     },
     _setFilters: function(filters){
         this.dataFilters = filters;  
@@ -459,5 +499,69 @@ Ext.define('CustomApp', {
         this.logger.log('_getFetchFields', Ext.Array.merge(fetch_fields,filter_fields));
         return Ext.Array.merge(fetch_fields,filter_fields);
     },
-
+    /********************************************
+    /* Overrides for App class
+    /*
+    /********************************************/
+    //getSettingsFields:  Override for App    
+    getSettingsFields: function() {
+        
+        return [
+                {
+            name: 'fp-cycle-states',
+            xtype: 'rallyfieldpicker',
+            modelTypes: ['HierarchicalRequirement','Defect'],
+            labelWidth: 100,
+            fieldLabel: 'Valid Cycle States',
+            labelAlign: 'left',
+            minWidth: 200,
+            margin: 10,
+            autoExpand: false,
+            alwaysExpanded: false,
+            listeners: {
+                scope: this,
+                fieldpickerstoreloaded: function(fp){
+                    console.log('fp',fp);
+                }
+            }
+        }];
+    },
+    isExternal: function(){
+      return typeof(this.getAppId()) == 'undefined';
+    },
+    //showSettings:  Override
+    showSettings: function(options) {      
+        this._appSettings = Ext.create('Rally.app.AppSettings', Ext.apply({
+            fields: this.getSettingsFields(),
+            settings: this.getSettings(),
+            defaultSettings: this.getDefaultSettings(),
+            context: this.getContext(),
+            settingsScope: this.settingsScope,
+            autoScroll: true
+        }, options));
+        
+        this._appSettings.on('cancel', this._hideSettings, this);
+        this._appSettings.on('save', this._onSettingsSaved, this);
+        if (this.isExternal()){
+            if (this.down('#settings_box').getComponent(this._appSettings.id)==undefined){
+                this.down('#settings_box').add(this._appSettings);
+            }
+        } else {
+            this.hide();
+            this.up().add(this._appSettings);
+        }
+        return this._appSettings;
+    },
+    _onSettingsSaved: function(settings){
+        Ext.apply(this.settings, settings);
+        this._hideSettings();
+        this.onSettingsUpdate(settings);
+    },
+    //onSettingsUpdate:  Override
+    onSettingsUpdate: function (settings){
+        //Build and save column settings...this means that we need to get the display names and multi-list
+        this.logger.log('onSettingsUpdate',settings);
+        
+        var cycleFields = this.getSetting('cycleFields');
+    }
 });
