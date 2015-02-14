@@ -192,6 +192,8 @@ Ext.define('CycleCalculator', {
             if (series_raw_data[i].length > 0){
                 series_data[i].y = Ext.Array.mean(series_raw_data[i]);
                 series_data[i].n = '(' + series_raw_data[i].length + ' Artifacts)';
+                console.log(date_buckets[i],series_data[i].y,series_raw_data[i]);
+
             } 
         }
 

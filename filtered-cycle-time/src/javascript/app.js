@@ -291,7 +291,7 @@ Ext.define('CustomApp', {
         this.logger.log('_drawChart');
         
         var me = this;
-        var chart = this.down('#rally-chart')
+        var chart = this.down('#rally-chart') 
         if (chart){
             this.down('#rally-chart').destroy(); 
         }
@@ -306,14 +306,15 @@ Ext.define('CustomApp', {
             chartData: chart_data, 
             loadMask: false,
             chartColors:['#000000','#8bbc21','#c42525','#8bbc21','#c42525'],
-            scope: this,
-            updateAfterRender: function()   {      
-                Ext.each(this.chartData.series, function(s){
-                    if (Ext.Array.contains(me.hiddenSeries, s.name)){
-                        s.visible = false;
-                    }
-                });
-            },
+            updateAfterRender: function(){
+                if (me.hiddenSeries && me.hiddenSeries.length > 0){
+                    Ext.each(this.chartData.series, function(s){
+                        if (Ext.Array.contains(me.hiddenSeries, s.name)){
+                            s.visible = false;
+                        }
+                    });
+                }
+           },
             updateBeforeRender: this._beforeChartRender,
             chartConfig: {
                 chart: {
@@ -367,9 +368,6 @@ Ext.define('CustomApp', {
 
             }
         });        
-    },
-    _afterChartRender: function(hiddenSeries){
-        //update the message if the data is null or all zeros
     },
     _beforeChartRender: function(){
         //update the tooltip data

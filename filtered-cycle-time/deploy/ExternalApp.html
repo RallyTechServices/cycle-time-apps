@@ -3,10 +3,10 @@
 <head>
     <title>Filtered Cycle Time</title>
     <!--  (c) 2014 Rally Software Development Corp.  All Rights Reserved. -->
-    <!--  Build Date: Fri Feb 13 2015 18:24:47 GMT-0500 (EST) -->
+    <!--  Build Date: Fri Feb 13 2015 19:14:14 GMT-0500 (EST) -->
     
     <script type="text/javascript">
-        var APP_BUILD_DATE = "Fri Feb 13 2015 18:24:47 GMT-0500 (EST)";
+        var APP_BUILD_DATE = "Fri Feb 13 2015 19:14:14 GMT-0500 (EST)";
         var CHECKSUM = [%= checksum %];
     </script>
     
@@ -332,6 +332,8 @@ Ext.define('CycleCalculator', {
             if (series_raw_data[i].length > 0){
                 series_data[i].y = Ext.Array.mean(series_raw_data[i]);
                 series_data[i].n = '(' + series_raw_data[i].length + ' Artifacts)';
+                console.log(date_buckets[i],series_data[i].y,series_raw_data[i]);
+
             } 
         }
 
@@ -1127,7 +1129,7 @@ Ext.define('CustomApp', {
         this.logger.log('_drawChart');
         
         var me = this;
-        var chart = this.down('#rally-chart')
+        var chart = this.down('#rally-chart') 
         if (chart){
             this.down('#rally-chart').destroy(); 
         }
@@ -1142,14 +1144,15 @@ Ext.define('CustomApp', {
             chartData: chart_data, 
             loadMask: false,
             chartColors:['#000000','#8bbc21','#c42525','#8bbc21','#c42525'],
-            scope: this,
-            updateAfterRender: function()   {      
-                Ext.each(this.chartData.series, function(s){
-                    if (Ext.Array.contains(me.hiddenSeries, s.name)){
-                        s.visible = false;
-                    }
-                });
-            },
+            updateAfterRender: function(){
+                if (me.hiddenSeries && me.hiddenSeries.length > 0){
+                    Ext.each(this.chartData.series, function(s){
+                        if (Ext.Array.contains(me.hiddenSeries, s.name)){
+                            s.visible = false;
+                        }
+                    });
+                }
+           },
             updateBeforeRender: this._beforeChartRender,
             chartConfig: {
                 chart: {
@@ -1203,9 +1206,6 @@ Ext.define('CustomApp', {
 
             }
         });        
-    },
-    _afterChartRender: function(hiddenSeries){
-        //update the message if the data is null or all zeros
     },
     _beforeChartRender: function(){
         //update the tooltip data
