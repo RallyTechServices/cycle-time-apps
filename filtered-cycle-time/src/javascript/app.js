@@ -3,7 +3,7 @@ Ext.define('CustomApp', {
     componentCls: 'app',
     logger: new Rally.technicalservices.Logger(),
     items: [
-        {xtype:'container',itemId:'message_box',tpl:'Hello, <tpl>{_refObjectName}</tpl>'},
+        {xtype:'container',itemId:'settings_box'},
         {xtype:'container',itemId:'selector_box', layout: {type: 'hbox'}},
     //    {xtype:'container',itemId:'filter_box', layout: {type: 'vbox'}, title: 'Filter by', border: 1, style: {borderColor: 'gray', borderStyle: 'solid'}},
         {xtype:'container',itemId:'display_box'},
@@ -14,6 +14,11 @@ Ext.define('CustomApp', {
             tpl:'<div class="ts-filter"><b>Applied Filters:</b><br><tpl for=".">{displayProperty} {operator} {value}<br></tpl></div>'},
         {xtype:'tsinfolink'}
     ],
+    config: {
+        defaultSettings: {
+            cycleStateFields:  "ScheduleState"
+        },
+    },
     defaultField: 'ScheduleState',
     cycleFields: [],
     granularityStore: [{
@@ -27,6 +32,7 @@ Ext.define('CustomApp', {
         dateFormat: 'M dd yyyy',
         tickInterval: 5
     }],
+    hiddenSeries: [],
     dateRangeStore: [
                     {name: 'Last Complete Month', value: -1},
                     {name: 'Last 2 Complete Months', value: -2},
@@ -37,14 +43,11 @@ Ext.define('CustomApp', {
     defaultDateRange: -3,
     dataFilters: [],
     launch: function() {
-        this._fetchFields().then({
-            scope: this,
-            success: function(){
-                this.logger.log('Valid fields for cycle and filter time', this.cycleFields, this.filterFields); 
-                this._initializeApp(this.cycleFields);
-            }
-        });
-
+        if (this.isExternal()){
+            this.showSettings(this.config);
+        } else {
+            this.onSettingsUpdate(this.getSettings());  //(this.config.type,this.config.pageSize,this.config.fetch,this.config.columns);
+        }        
     },
     _initializeApp: function(validFields){
        var field_store = Ext.create('Rally.data.custom.Store', {
@@ -64,13 +67,15 @@ Ext.define('CustomApp', {
             labelAlign: 'right',
             labelWidth: 50,
             queryMode: 'local',
+            allowNoEntry: false, 
             margin: 10,
             scope: this,
             listeners: {
                 scope: this,
                 select: this._updateDropdowns,
                 ready: function(cb){
-                    cb.setValue(this.defaultField);
+                  //  console.log(this.defaultField);
+                  //  cb.setValue(this.defaultField);
                     this._updateDropdowns(cb);
                 }
             }
@@ -86,9 +91,9 @@ Ext.define('CustomApp', {
         this.logger.log('_getGroupPrecedence',this.down('#cb-from-state').getStore(), group);
         return group;  
     },
-     _fetchFields: function(){
+     _fetchFields: function(cycleStateFields){
          var deferred = Ext.create('Deft.Deferred');
-         
+         this.logger.log('_fetchFields', cycleStateFields);
          var allowed_attribute_types = ['STATE','STRING'];
          var additional_filterable_fields = ['PlanEstimate'];
          var valid_fields = [];
@@ -105,17 +110,15 @@ Ext.define('CustomApp', {
                      if (f.hidden === false && f.attributeDefinition){
                          var attr_def = f.attributeDefinition;
                          if (!Ext.Array.contains(field_names, attr_def.ElementName)){
-                             if (attr_def.Constrained && Ext.Array.contains(allowed_attribute_types, attr_def.AttributeType) && attr_def.ReadOnly == false){
-                                 field_names.push(attr_def.ElementName);
-                                 filter_fields.push(f);
+                             if (Ext.Array.contains(cycleStateFields,attr_def.ElementName)){
                                  valid_fields.push(f);
-                             } else {
-                                 if (Ext.Array.contains(additional_filterable_fields, attr_def.ElementName)){
+                             }
+                             if (Ext.Array.contains(additional_filterable_fields, attr_def.ElementName) || 
+                                             (attr_def.Constrained && Ext.Array.contains(allowed_attribute_types, attr_def.AttributeType) && attr_def.ReadOnly == false)){
                                      field_names.push(attr_def.ElementName);
                                      filter_fields.push(f);
-                                 }
                              }
-                        }
+                         }
                      }
                  });
                  this.filterFields = _.uniq(filter_fields);  
@@ -155,83 +158,86 @@ Ext.define('CustomApp', {
         }
        
         var field = cb.getValue();
-        var model = cb.getRecord().get('modelType');
-       
-        this.down('#selector_box').add({
-            xtype: 'rallyfieldvaluecombobox',
-            itemId: 'cb-from-state',
-            model: model,
-            field: field,
-            valueField: 'ObjectID',
-            allowNoEntry: false,
-            fieldLabel:  'Start',
-            labelAlign: 'right',
-            labelWidth: 30,
-            margin: 10
-        });
         
-        this.down('#selector_box').add({
-            xtype: 'rallyfieldvaluecombobox',
-            itemId: 'cb-to-state',
-            model: model,
-            field: field,
-            fieldLabel:  'End',
-            labelAlign: 'right',
-            labelWidth: 30,
-            margin: 10
-        });
-        
-        var granularity_store = Ext.create('Rally.data.custom.Store', {
-            data: this.granularityStore
-        });
-        this.down('#selector_box').add({
-            xtype: 'rallycombobox',
-            itemId: 'cb-granularity',
-            store: granularity_store,
-            displayField: 'displayName',
-            valueField: 'value',
-            fieldLabel:  'Granularity',
-            labelAlign: 'right',
-            labelWidth: 60,
-            margin: 10
-        });
+        if (cb.getRecord()){
+            var model = cb.getRecord().get('modelType');
+            
+            this.down('#selector_box').add({
+                xtype: 'rallyfieldvaluecombobox',
+                itemId: 'cb-from-state',
+                model: model,
+                field: field,
+                valueField: 'ObjectID',
+                allowNoEntry: false,
+                fieldLabel:  'Start',
+                labelAlign: 'right',
+                labelWidth: 30,
+                margin: 10
+            });
+            
+            this.down('#selector_box').add({
+                xtype: 'rallyfieldvaluecombobox',
+                itemId: 'cb-to-state',
+                model: model,
+                field: field,
+                fieldLabel:  'End',
+                labelAlign: 'right',
+                labelWidth: 30,
+                margin: 10
+            });
+            
+            var granularity_store = Ext.create('Rally.data.custom.Store', {
+                data: this.granularityStore
+            });
+            this.down('#selector_box').add({
+                xtype: 'rallycombobox',
+                itemId: 'cb-granularity',
+                store: granularity_store,
+                displayField: 'displayName',
+                valueField: 'value',
+                fieldLabel:  'Granularity',
+                labelAlign: 'right',
+                labelWidth: 60,
+                margin: 10
+            });
 
-        var date_store = Ext.create('Rally.data.custom.Store', {
-            data: this.dateRangeStore
-        });
+            var date_store = Ext.create('Rally.data.custom.Store', {
+                data: this.dateRangeStore
+            });
 
-        this.down('#selector_box').add({
-            xtype: 'rallycombobox',
-            itemId: 'cb-date-range',
-            store: date_store,
-            displayField: 'name',
-            valueField: 'value',
-            fieldLabel:  'Date Range',
-            labelAlign: 'right',
-            labelWidth: 85,
-            width: 250,
-            value: this.defaultDateRange,
-            margin: 10
-        });
-        
-        
-        this.down('#selector_box').add({
-            xtype: 'rallybutton',
-            itemId: 'btn-update',
-            text: 'Update',
-            scope: this,
-            margin: 10,
-            handler: this._createChart
-        });
-        
-        this.down('#selector_box').add({
-            xtype: 'rallybutton',
-            itemId: 'btn-filter',
-            scope: this,
-            text: 'Filter',
-            margin: 10,
-            handler: this._filter
-        });
+            this.down('#selector_box').add({
+                xtype: 'rallycombobox',
+                itemId: 'cb-date-range',
+                store: date_store,
+                displayField: 'name',
+                valueField: 'value',
+                fieldLabel:  'Date Range',
+                labelAlign: 'right',
+                labelWidth: 85,
+                width: 250,
+                value: this.defaultDateRange,
+                margin: 10
+            });
+            
+            
+            this.down('#selector_box').add({
+                xtype: 'rallybutton',
+                itemId: 'btn-update',
+                text: 'Update',
+                scope: this,
+                margin: 10,
+                handler: this._createChart
+            });
+            
+            this.down('#selector_box').add({
+                xtype: 'rallybutton',
+                itemId: 'btn-filter',
+                scope: this,
+                text: 'Filter',
+                margin: 10,
+                handler: this._filter
+            });
+        }
     },
     _getStartState: function(){
         return this.down('#cb-from-state').getValue();
@@ -282,7 +288,9 @@ Ext.define('CustomApp', {
     _drawChart: function(chart_data){
         this.logger.log('_drawChart');
         
-        if (this.down('#rally-chart')){
+        var me = this;
+        var chart = this.down('#rally-chart') 
+        if (chart){
             this.down('#rally-chart').destroy(); 
         }
 
@@ -296,6 +304,16 @@ Ext.define('CustomApp', {
             chartData: chart_data, 
             loadMask: false,
             chartColors:['#000000','#8bbc21','#c42525','#8bbc21','#c42525'],
+            updateAfterRender: function(){
+                if (me.hiddenSeries && me.hiddenSeries.length > 0){
+                    Ext.each(this.chartData.series, function(s){
+                        if (Ext.Array.contains(me.hiddenSeries, s.name)){
+                            s.visible = false;
+                        }
+                    });
+                }
+           },
+            updateBeforeRender: this._beforeChartRender,
             chartConfig: {
                 chart: {
                     zoomType: 'xy',
@@ -325,7 +343,18 @@ Ext.define('CustomApp', {
                         },
                         marker: {
                             enabled: false,
+                        },
+                        events: {
+                            legendItemClick: function () {
+                                if (this.visible){
+                                    //we are hiding it
+                                    me.hiddenSeries = _.union(me.hiddenSeries, [this.name]);  
+                                } else {
+                                    me.hiddenSeries = _.without(me.hiddenSeries, this.name);
+                                }
+                            }
                         }
+
                     },
                     line: {
                         connectNulls: true,
@@ -334,8 +363,12 @@ Ext.define('CustomApp', {
                         }
                     }
                 },
+
             }
         });        
+    },
+    _beforeChartRender: function(){
+        this.chartConfig.plotOptions.line.tooltip.pointFormat = '<span style="color:{series.color}">\u25CF</span> {series.name}: <b>{point.y:.1f} {point.n}</b><br/>';
     },
     _setFilters: function(filters){
         this.dataFilters = filters;  
@@ -459,5 +492,79 @@ Ext.define('CustomApp', {
         this.logger.log('_getFetchFields', Ext.Array.merge(fetch_fields,filter_fields));
         return Ext.Array.merge(fetch_fields,filter_fields);
     },
+    /********************************************
+    /* Overrides for App class
+    /*
+    /********************************************/
+    //getSettingsFields:  Override for App    
+    getSettingsFields: function() {
+        
+        return [
+                {
+            name: 'cycleStateFields',
+            xtype: 'rallyfieldpicker',
+            modelTypes: ['HierarchicalRequirement','Defect'],
+            labelWidth: 100,
+            fieldLabel: 'Valid Cycle States',
+            labelAlign: 'left',
+            minWidth: 400,
+            margin: '10 0 255 0',
+            autoExpand: false,
+            alwaysExpanded: false,
+            storeConfig: {
+                context: {project: null}
+            }
+        }];
+    },
+    isExternal: function(){
+      return typeof(this.getAppId()) == 'undefined';
+    },
+    //showSettings:  Override
+    showSettings: function(options) {      
+        this._appSettings = Ext.create('Rally.app.AppSettings', Ext.apply({
+            fields: this.getSettingsFields(),
+            settings: this.getSettings(),
+            defaultSettings: this.getDefaultSettings(),
+            context: this.getContext(),
+            settingsScope: this.settingsScope,
+            autoScroll: true
+        }, options));
+        
+        this._appSettings.on('cancel', this._hideSettings, this);
+        this._appSettings.on('save', this._onSettingsSaved, this);
+        if (this.isExternal()){
+            if (this.down('#settings_box').getComponent(this._appSettings.id)==undefined){
+                this.down('#settings_box').add(this._appSettings);
+            }
+        } else {
+            this.hide();
+            this.up().add(this._appSettings);
+        }
+        return this._appSettings;
+    },
+    _onSettingsSaved: function(settings){
+        Ext.apply(this.settings, settings);
+        this._hideSettings();
+        this.onSettingsUpdate(settings);
+    },
+    //onSettingsUpdate:  Override
+    onSettingsUpdate: function (settings){
+        //Build and save column settings...this means that we need to get the display names and multi-list
+        var cycleStateFields_setting = this.getSetting('cycleStateFields');
+        if (cycleStateFields_setting instanceof Array){
+            cycleStateFields = cycleStateFields_setting;
+        } else {
+            cycleStateFields = cycleStateFields_setting.split(',');
+        }
+        this.logger.log('onSettingsUpdate',settings, cycleStateFields);
+        this._fetchFields(cycleStateFields).then({
+            scope: this,
+            success: function(){
+                this.logger.log('Valid fields for cycle and filter time', this.cycleFields, this.filterFields); 
+                this._initializeApp(this.cycleFields);
+            }
+        });
 
+
+    }
 });

@@ -3,10 +3,10 @@
 <head>
     <title>Filtered Cycle Time</title>
     <!--  (c) 2014 Rally Software Development Corp.  All Rights Reserved. -->
-    <!--  Build Date: Tue Feb 10 2015 14:41:29 GMT-0700 (MST) -->
+    <!--  Build Date: Sat Feb 14 2015 00:27:29 GMT-0500 (EST) -->
     
     <script type="text/javascript">
-        var APP_BUILD_DATE = "Tue Feb 10 2015 14:41:29 GMT-0700 (MST)";
+        var APP_BUILD_DATE = "Sat Feb 14 2015 00:27:29 GMT-0500 (EST)";
         var CHECKSUM = [%= checksum %];
     </script>
     
@@ -211,10 +211,10 @@ Ext.define('CycleCalculator', {
         var sum_x_squared = 0;
         var n = 0;  
         for (var i=0; i<series.data.length; i++){
-            if (series.data[i]){
-                sum_xy += series.data[i] * i;
+            if (series.data[i].y){
+                sum_xy += series.data[i].y * i;
                 sum_x += i;
-                sum_y += series.data[i];
+                sum_y += series.data[i].y;
                 sum_x_squared += i * i;
                 n++;
             }
@@ -224,18 +224,16 @@ Ext.define('CycleCalculator', {
 
         this.logger.log('trendline data (name, slope, intercept)',series.name, slope, intercept);
         
-        var y = new Array(series.data.length);
-        for (var i =0; i<series.data.length; i++){
-            if (isNaN(intercept) || isNaN(slope)) {
-                y[i] = null;  
-                
-            } else {
-                y[i] = intercept + slope * i;  
+        var y = [];
+        if (!isNaN(slope) && !isNaN(intercept)){
+            y = _.range(series.data.length).map(function () {return null})
+            for (var i =0; i<series.data.length; i++){
+               y[i] = intercept + slope * i;  
             }
         }
         this.logger.log('_getTrendline', y);
         return {
-             name: series.name + ' trend',
+             name: series.name + ' Trendline',
              color: color,
              data: y,
              display: 'line',
@@ -262,6 +260,11 @@ Ext.define('CycleCalculator', {
             }
             if (state_index >= start_index && start_date == null){
                 start_date = Rally.util.DateTime.fromIsoString(snap._ValidFrom);  
+                between_states = true;  
+            }
+
+            //This accounts for the case where the state dips back down 
+            if (between_states == false && state_index < end_index && start_date != null){
                 between_states = true;  
             }
             
@@ -308,9 +311,11 @@ Ext.define('CycleCalculator', {
     _getSeries: function(cycle_time_data, date_buckets, granularity, type, color){
         var series_raw_data = [];
         var series_data = [];
+        var tooltip_data = [];
         for (var i=0; i<date_buckets.length; i++){
             series_raw_data[i] = [];
-            series_data = 0;
+            tooltip_data[i] = 0;
+            series_data[i] = {y: null, n: 0};
         }
         
         Ext.each(cycle_time_data, function(cdata){
@@ -321,21 +326,21 @@ Ext.define('CycleCalculator', {
             }
         });
 
-        var series_data = new Array(series_raw_data.length);
-        _.map(series_data, function(){return null});
+        var validDataPoints = 0;
+        var series_data = _.range(date_buckets.length).map(function () { return {y: null, n: 0} })
         for (var i=0; i<series_raw_data.length; i++){
             if (series_raw_data[i].length > 0){
-                series_data[i] = Ext.Array.mean(series_raw_data[i]);
-            } else {
-                series_data[i]=null;
-            }
+                series_data[i].y = Ext.Array.mean(series_raw_data[i]);
+                series_data[i].n = '(' + series_raw_data[i].length + ' Artifacts)';
+                console.log(date_buckets[i],series_data[i].y,series_raw_data[i]);
+
+            } 
         }
 
         return {
              name: this._getSeriesName(type),
              color: color,
-             data: series_data,
-          //   display: 'line'
+             data: series_data
          };
     },
     _getSeriesName: function(type){
@@ -755,6 +760,16 @@ Ext.define('Rally.technicalservices.dialog.Filter',{
         return ctl; 
     },
 });
+Ext.override(Rally.ui.picker.FieldPicker, {
+    _shouldShowField: function(field) {
+        var allowed_attribute_types = ['STATE','STRING'];
+        if (field.attributeDefinition){
+            var attr_def = field.attributeDefinition;
+            return (attr_def.Constrained && Ext.Array.contains(allowed_attribute_types, attr_def.AttributeType) && attr_def.ReadOnly == false)
+        }
+        return false;
+    }
+});
 Ext.define('Rally.technicalservices.Toolbox',{
     singleton: true,
     /**
@@ -836,7 +851,7 @@ Ext.define('CustomApp', {
     componentCls: 'app',
     logger: new Rally.technicalservices.Logger(),
     items: [
-        {xtype:'container',itemId:'message_box',tpl:'Hello, <tpl>{_refObjectName}</tpl>'},
+        {xtype:'container',itemId:'settings_box'},
         {xtype:'container',itemId:'selector_box', layout: {type: 'hbox'}},
     //    {xtype:'container',itemId:'filter_box', layout: {type: 'vbox'}, title: 'Filter by', border: 1, style: {borderColor: 'gray', borderStyle: 'solid'}},
         {xtype:'container',itemId:'display_box'},
@@ -847,6 +862,11 @@ Ext.define('CustomApp', {
             tpl:'<div class="ts-filter"><b>Applied Filters:</b><br><tpl for=".">{displayProperty} {operator} {value}<br></tpl></div>'},
         {xtype:'tsinfolink'}
     ],
+    config: {
+        defaultSettings: {
+            cycleStateFields:  "ScheduleState"
+        },
+    },
     defaultField: 'ScheduleState',
     cycleFields: [],
     granularityStore: [{
@@ -860,6 +880,7 @@ Ext.define('CustomApp', {
         dateFormat: 'M dd yyyy',
         tickInterval: 5
     }],
+    hiddenSeries: [],
     dateRangeStore: [
                     {name: 'Last Complete Month', value: -1},
                     {name: 'Last 2 Complete Months', value: -2},
@@ -870,14 +891,11 @@ Ext.define('CustomApp', {
     defaultDateRange: -3,
     dataFilters: [],
     launch: function() {
-        this._fetchFields().then({
-            scope: this,
-            success: function(){
-                this.logger.log('Valid fields for cycle and filter time', this.cycleFields, this.filterFields); 
-                this._initializeApp(this.cycleFields);
-            }
-        });
-
+        if (this.isExternal()){
+            this.showSettings(this.config);
+        } else {
+            this.onSettingsUpdate(this.getSettings());  //(this.config.type,this.config.pageSize,this.config.fetch,this.config.columns);
+        }        
     },
     _initializeApp: function(validFields){
        var field_store = Ext.create('Rally.data.custom.Store', {
@@ -897,13 +915,15 @@ Ext.define('CustomApp', {
             labelAlign: 'right',
             labelWidth: 50,
             queryMode: 'local',
+            allowNoEntry: false, 
             margin: 10,
             scope: this,
             listeners: {
                 scope: this,
                 select: this._updateDropdowns,
                 ready: function(cb){
-                    cb.setValue(this.defaultField);
+                  //  console.log(this.defaultField);
+                  //  cb.setValue(this.defaultField);
                     this._updateDropdowns(cb);
                 }
             }
@@ -919,9 +939,9 @@ Ext.define('CustomApp', {
         this.logger.log('_getGroupPrecedence',this.down('#cb-from-state').getStore(), group);
         return group;  
     },
-     _fetchFields: function(){
+     _fetchFields: function(cycleStateFields){
          var deferred = Ext.create('Deft.Deferred');
-         
+         this.logger.log('_fetchFields', cycleStateFields);
          var allowed_attribute_types = ['STATE','STRING'];
          var additional_filterable_fields = ['PlanEstimate'];
          var valid_fields = [];
@@ -938,17 +958,15 @@ Ext.define('CustomApp', {
                      if (f.hidden === false && f.attributeDefinition){
                          var attr_def = f.attributeDefinition;
                          if (!Ext.Array.contains(field_names, attr_def.ElementName)){
-                             if (attr_def.Constrained && Ext.Array.contains(allowed_attribute_types, attr_def.AttributeType) && attr_def.ReadOnly == false){
-                                 field_names.push(attr_def.ElementName);
-                                 filter_fields.push(f);
+                             if (Ext.Array.contains(cycleStateFields,attr_def.ElementName)){
                                  valid_fields.push(f);
-                             } else {
-                                 if (Ext.Array.contains(additional_filterable_fields, attr_def.ElementName)){
+                             }
+                             if (Ext.Array.contains(additional_filterable_fields, attr_def.ElementName) || 
+                                             (attr_def.Constrained && Ext.Array.contains(allowed_attribute_types, attr_def.AttributeType) && attr_def.ReadOnly == false)){
                                      field_names.push(attr_def.ElementName);
                                      filter_fields.push(f);
-                                 }
                              }
-                        }
+                         }
                      }
                  });
                  this.filterFields = _.uniq(filter_fields);  
@@ -988,83 +1006,86 @@ Ext.define('CustomApp', {
         }
        
         var field = cb.getValue();
-        var model = cb.getRecord().get('modelType');
-       
-        this.down('#selector_box').add({
-            xtype: 'rallyfieldvaluecombobox',
-            itemId: 'cb-from-state',
-            model: model,
-            field: field,
-            valueField: 'ObjectID',
-            allowNoEntry: false,
-            fieldLabel:  'Start',
-            labelAlign: 'right',
-            labelWidth: 30,
-            margin: 10
-        });
         
-        this.down('#selector_box').add({
-            xtype: 'rallyfieldvaluecombobox',
-            itemId: 'cb-to-state',
-            model: model,
-            field: field,
-            fieldLabel:  'End',
-            labelAlign: 'right',
-            labelWidth: 30,
-            margin: 10
-        });
-        
-        var granularity_store = Ext.create('Rally.data.custom.Store', {
-            data: this.granularityStore
-        });
-        this.down('#selector_box').add({
-            xtype: 'rallycombobox',
-            itemId: 'cb-granularity',
-            store: granularity_store,
-            displayField: 'displayName',
-            valueField: 'value',
-            fieldLabel:  'Granularity',
-            labelAlign: 'right',
-            labelWidth: 60,
-            margin: 10
-        });
+        if (cb.getRecord()){
+            var model = cb.getRecord().get('modelType');
+            
+            this.down('#selector_box').add({
+                xtype: 'rallyfieldvaluecombobox',
+                itemId: 'cb-from-state',
+                model: model,
+                field: field,
+                valueField: 'ObjectID',
+                allowNoEntry: false,
+                fieldLabel:  'Start',
+                labelAlign: 'right',
+                labelWidth: 30,
+                margin: 10
+            });
+            
+            this.down('#selector_box').add({
+                xtype: 'rallyfieldvaluecombobox',
+                itemId: 'cb-to-state',
+                model: model,
+                field: field,
+                fieldLabel:  'End',
+                labelAlign: 'right',
+                labelWidth: 30,
+                margin: 10
+            });
+            
+            var granularity_store = Ext.create('Rally.data.custom.Store', {
+                data: this.granularityStore
+            });
+            this.down('#selector_box').add({
+                xtype: 'rallycombobox',
+                itemId: 'cb-granularity',
+                store: granularity_store,
+                displayField: 'displayName',
+                valueField: 'value',
+                fieldLabel:  'Granularity',
+                labelAlign: 'right',
+                labelWidth: 60,
+                margin: 10
+            });
 
-        var date_store = Ext.create('Rally.data.custom.Store', {
-            data: this.dateRangeStore
-        });
+            var date_store = Ext.create('Rally.data.custom.Store', {
+                data: this.dateRangeStore
+            });
 
-        this.down('#selector_box').add({
-            xtype: 'rallycombobox',
-            itemId: 'cb-date-range',
-            store: date_store,
-            displayField: 'name',
-            valueField: 'value',
-            fieldLabel:  'Date Range',
-            labelAlign: 'right',
-            labelWidth: 85,
-            width: 250,
-            value: this.defaultDateRange,
-            margin: 10
-        });
-        
-        
-        this.down('#selector_box').add({
-            xtype: 'rallybutton',
-            itemId: 'btn-update',
-            text: 'Update',
-            scope: this,
-            margin: 10,
-            handler: this._createChart
-        });
-        
-        this.down('#selector_box').add({
-            xtype: 'rallybutton',
-            itemId: 'btn-filter',
-            scope: this,
-            text: 'Filter',
-            margin: 10,
-            handler: this._filter
-        });
+            this.down('#selector_box').add({
+                xtype: 'rallycombobox',
+                itemId: 'cb-date-range',
+                store: date_store,
+                displayField: 'name',
+                valueField: 'value',
+                fieldLabel:  'Date Range',
+                labelAlign: 'right',
+                labelWidth: 85,
+                width: 250,
+                value: this.defaultDateRange,
+                margin: 10
+            });
+            
+            
+            this.down('#selector_box').add({
+                xtype: 'rallybutton',
+                itemId: 'btn-update',
+                text: 'Update',
+                scope: this,
+                margin: 10,
+                handler: this._createChart
+            });
+            
+            this.down('#selector_box').add({
+                xtype: 'rallybutton',
+                itemId: 'btn-filter',
+                scope: this,
+                text: 'Filter',
+                margin: 10,
+                handler: this._filter
+            });
+        }
     },
     _getStartState: function(){
         return this.down('#cb-from-state').getValue();
@@ -1115,7 +1136,9 @@ Ext.define('CustomApp', {
     _drawChart: function(chart_data){
         this.logger.log('_drawChart');
         
-        if (this.down('#rally-chart')){
+        var me = this;
+        var chart = this.down('#rally-chart') 
+        if (chart){
             this.down('#rally-chart').destroy(); 
         }
 
@@ -1129,6 +1152,16 @@ Ext.define('CustomApp', {
             chartData: chart_data, 
             loadMask: false,
             chartColors:['#000000','#8bbc21','#c42525','#8bbc21','#c42525'],
+            updateAfterRender: function(){
+                if (me.hiddenSeries && me.hiddenSeries.length > 0){
+                    Ext.each(this.chartData.series, function(s){
+                        if (Ext.Array.contains(me.hiddenSeries, s.name)){
+                            s.visible = false;
+                        }
+                    });
+                }
+           },
+            updateBeforeRender: this._beforeChartRender,
             chartConfig: {
                 chart: {
                     zoomType: 'xy',
@@ -1158,7 +1191,18 @@ Ext.define('CustomApp', {
                         },
                         marker: {
                             enabled: false,
+                        },
+                        events: {
+                            legendItemClick: function () {
+                                if (this.visible){
+                                    //we are hiding it
+                                    me.hiddenSeries = _.union(me.hiddenSeries, [this.name]);  
+                                } else {
+                                    me.hiddenSeries = _.without(me.hiddenSeries, this.name);
+                                }
+                            }
                         }
+
                     },
                     line: {
                         connectNulls: true,
@@ -1167,8 +1211,12 @@ Ext.define('CustomApp', {
                         }
                     }
                 },
+
             }
         });        
+    },
+    _beforeChartRender: function(){
+        this.chartConfig.plotOptions.line.tooltip.pointFormat = '<span style="color:{series.color}">\u25CF</span> {series.name}: <b>{point.y:.1f} {point.n}</b><br/>';
     },
     _setFilters: function(filters){
         this.dataFilters = filters;  
@@ -1292,7 +1340,81 @@ Ext.define('CustomApp', {
         this.logger.log('_getFetchFields', Ext.Array.merge(fetch_fields,filter_fields));
         return Ext.Array.merge(fetch_fields,filter_fields);
     },
+    /********************************************
+    /* Overrides for App class
+    /*
+    /********************************************/
+    //getSettingsFields:  Override for App    
+    getSettingsFields: function() {
+        
+        return [
+                {
+            name: 'cycleStateFields',
+            xtype: 'rallyfieldpicker',
+            modelTypes: ['HierarchicalRequirement','Defect'],
+            labelWidth: 100,
+            fieldLabel: 'Valid Cycle States',
+            labelAlign: 'left',
+            minWidth: 400,
+            margin: '10 0 255 0',
+            autoExpand: false,
+            alwaysExpanded: false,
+            storeConfig: {
+                context: {project: null}
+            }
+        }];
+    },
+    isExternal: function(){
+      return typeof(this.getAppId()) == 'undefined';
+    },
+    //showSettings:  Override
+    showSettings: function(options) {      
+        this._appSettings = Ext.create('Rally.app.AppSettings', Ext.apply({
+            fields: this.getSettingsFields(),
+            settings: this.getSettings(),
+            defaultSettings: this.getDefaultSettings(),
+            context: this.getContext(),
+            settingsScope: this.settingsScope,
+            autoScroll: true
+        }, options));
+        
+        this._appSettings.on('cancel', this._hideSettings, this);
+        this._appSettings.on('save', this._onSettingsSaved, this);
+        if (this.isExternal()){
+            if (this.down('#settings_box').getComponent(this._appSettings.id)==undefined){
+                this.down('#settings_box').add(this._appSettings);
+            }
+        } else {
+            this.hide();
+            this.up().add(this._appSettings);
+        }
+        return this._appSettings;
+    },
+    _onSettingsSaved: function(settings){
+        Ext.apply(this.settings, settings);
+        this._hideSettings();
+        this.onSettingsUpdate(settings);
+    },
+    //onSettingsUpdate:  Override
+    onSettingsUpdate: function (settings){
+        //Build and save column settings...this means that we need to get the display names and multi-list
+        var cycleStateFields_setting = this.getSetting('cycleStateFields');
+        if (cycleStateFields_setting instanceof Array){
+            cycleStateFields = cycleStateFields_setting;
+        } else {
+            cycleStateFields = cycleStateFields_setting.split(',');
+        }
+        this.logger.log('onSettingsUpdate',settings, cycleStateFields);
+        this._fetchFields(cycleStateFields).then({
+            scope: this,
+            success: function(){
+                this.logger.log('Valid fields for cycle and filter time', this.cycleFields, this.filterFields); 
+                this._initializeApp(this.cycleFields);
+            }
+        });
 
+
+    }
 });
             
                Rally.launchApp('CustomApp', {

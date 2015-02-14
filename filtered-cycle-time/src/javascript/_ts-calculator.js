@@ -71,10 +71,10 @@ Ext.define('CycleCalculator', {
         var sum_x_squared = 0;
         var n = 0;  
         for (var i=0; i<series.data.length; i++){
-            if (series.data[i]){
-                sum_xy += series.data[i] * i;
+            if (series.data[i].y){
+                sum_xy += series.data[i].y * i;
                 sum_x += i;
-                sum_y += series.data[i];
+                sum_y += series.data[i].y;
                 sum_x_squared += i * i;
                 n++;
             }
@@ -84,18 +84,16 @@ Ext.define('CycleCalculator', {
 
         this.logger.log('trendline data (name, slope, intercept)',series.name, slope, intercept);
         
-        var y = new Array(series.data.length);
-        for (var i =0; i<series.data.length; i++){
-            if (isNaN(intercept) || isNaN(slope)) {
-                y[i] = null;  
-                
-            } else {
-                y[i] = intercept + slope * i;  
+        var y = [];
+        if (!isNaN(slope) && !isNaN(intercept)){
+            y = _.range(series.data.length).map(function () {return null})
+            for (var i =0; i<series.data.length; i++){
+               y[i] = intercept + slope * i;  
             }
         }
         this.logger.log('_getTrendline', y);
         return {
-             name: series.name + ' trend',
+             name: series.name + ' Trendline',
              color: color,
              data: y,
              display: 'line',
@@ -122,6 +120,11 @@ Ext.define('CycleCalculator', {
             }
             if (state_index >= start_index && start_date == null){
                 start_date = Rally.util.DateTime.fromIsoString(snap._ValidFrom);  
+                between_states = true;  
+            }
+
+            //This accounts for the case where the state dips back down 
+            if (between_states == false && state_index < end_index && start_date != null){
                 between_states = true;  
             }
             
@@ -168,9 +171,11 @@ Ext.define('CycleCalculator', {
     _getSeries: function(cycle_time_data, date_buckets, granularity, type, color){
         var series_raw_data = [];
         var series_data = [];
+        var tooltip_data = [];
         for (var i=0; i<date_buckets.length; i++){
             series_raw_data[i] = [];
-            series_data = 0;
+            tooltip_data[i] = 0;
+            series_data[i] = {y: null, n: 0};
         }
         
         Ext.each(cycle_time_data, function(cdata){
@@ -181,21 +186,21 @@ Ext.define('CycleCalculator', {
             }
         });
 
-        var series_data = new Array(series_raw_data.length);
-        _.map(series_data, function(){return null});
+        var validDataPoints = 0;
+        var series_data = _.range(date_buckets.length).map(function () { return {y: null, n: 0} })
         for (var i=0; i<series_raw_data.length; i++){
             if (series_raw_data[i].length > 0){
-                series_data[i] = Ext.Array.mean(series_raw_data[i]);
-            } else {
-                series_data[i]=null;
-            }
+                series_data[i].y = Ext.Array.mean(series_raw_data[i]);
+                series_data[i].n = '(' + series_raw_data[i].length + ' Artifacts)';
+                console.log(date_buckets[i],series_data[i].y,series_raw_data[i]);
+
+            } 
         }
 
         return {
              name: this._getSeriesName(type),
              color: color,
-             data: series_data,
-          //   display: 'line'
+             data: series_data
          };
     },
     _getSeriesName: function(type){
