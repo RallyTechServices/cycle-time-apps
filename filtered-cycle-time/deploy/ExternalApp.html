@@ -3,10 +3,10 @@
 <head>
     <title>Filtered Cycle Time</title>
     <!--  (c) 2014 Rally Software Development Corp.  All Rights Reserved. -->
-    <!--  Build Date: Thu Feb 19 2015 08:26:36 GMT-0800 (PST) -->
+    <!--  Build Date: Thu Feb 19 2015 08:37:32 GMT-0800 (PST) -->
     
     <script type="text/javascript">
-        var APP_BUILD_DATE = "Thu Feb 19 2015 08:26:36 GMT-0800 (PST)";
+        var APP_BUILD_DATE = "Thu Feb 19 2015 08:37:32 GMT-0800 (PST)";
         var CHECKSUM = [%= checksum %];
     </script>
     
@@ -271,8 +271,8 @@ Ext.define('CycleCalculator', {
             if (between_states && state_index >= end_index){
                 end_date = Rally.util.DateTime.fromIsoString(snap._ValidFrom);
                 if (start_date != null){
-                    minutes = Rally.util.DateTime.getDifference(end_date,start_date,"minute");
-                    days = Math.ceil(minutes/1440);  
+                    seconds = Rally.util.DateTime.getDifference(end_date,start_date,"second");
+                    days = Math.ceil(seconds/86400);  
                 }
                 between_states = false;  
                 include = this._snapMeetsFilterCriteria(snap);
