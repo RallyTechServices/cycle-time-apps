@@ -17,6 +17,11 @@ the start date may be the first date that the data was in a state >= start state
 
 Cycle time is measured in days from the first date the artifact state goes into a state >= the selected start state to the 
 last date the artifact state moves into a state >= the selected end state from a state < the selected end state.  
+Cycle time for each data point is calculated by getting the difference in minutes between the first and last dates, 
+converting days and rounding up.  
+
+An artifact whose cycle time between states was less than a minute will have a data point of 0.  
+An artifact whose cycle time was 1.01 minutes will have a data point of 1 day.  
 
 If no start state is selected, the cycle time will start from the first snapshot or from the first date that the artifact was moved 
 into the selected project.  
