@@ -131,7 +131,8 @@ Ext.define('CycleCalculator', {
             if (between_states && state_index >= end_index){
                 end_date = Rally.util.DateTime.fromIsoString(snap._ValidFrom);
                 if (start_date != null){
-                    days = Rally.util.DateTime.getDifference(end_date,start_date,"day");
+                    minutes = Rally.util.DateTime.getDifference(end_date,start_date,"minute");
+                    days = Math.ceil(minutes/1440);  
                 }
                 between_states = false;  
                 include = this._snapMeetsFilterCriteria(snap);
