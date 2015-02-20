@@ -36,7 +36,11 @@ Ext.define('CycleCalculator', {
              }
          },this);
          
-         console.log('cycleTmeDAta',cycle_time_data.length);
+         var text = _.keys(cycle_time_data[0]) + '\n';
+         Ext.each(cycle_time_data, function(ctd){
+             text += _.values(ctd) + '\n';
+         });
+         console.log('cycleTimeData',cycle_time_data.length, text);
          
          var series = [];
          console.log(this.color);
@@ -132,15 +136,15 @@ Ext.define('CycleCalculator', {
                 end_date = Rally.util.DateTime.fromIsoString(snap._ValidFrom);
                 if (start_date != null){
                     seconds = Rally.util.DateTime.getDifference(end_date,start_date,"second");
-                    days = Math.ceil(seconds/86400);  
+                    days = Math.floor(seconds/86400) + 1;  
                 }
                 between_states = false;  
                 include = this._snapMeetsFilterCriteria(snap);
             }
             
         }, this);
-        
-        return {days: days, endDate: end_date, startDate: start_date, artifactType: type, include: include };
+
+        return {formattedId: snaps[0].FormattedID, seconds: seconds, days: days, endDate: end_date, startDate: start_date, artifactType: type, include: include };
     },
     _snapMeetsFilterCriteria: function(snap){
         var is_filtered = true;
