@@ -3,10 +3,10 @@
 <head>
     <title>Filtered Cycle Time</title>
     <!--  (c) 2014 Rally Software Development Corp.  All Rights Reserved. -->
-    <!--  Build Date: Thu Feb 19 2015 21:09:40 GMT-0800 (PST) -->
+    <!--  Build Date: Sun Feb 22 2015 14:04:47 GMT-0800 (PST) -->
     
     <script type="text/javascript">
-        var APP_BUILD_DATE = "Thu Feb 19 2015 21:09:40 GMT-0800 (PST)";
+        var APP_BUILD_DATE = "Sun Feb 22 2015 14:04:47 GMT-0800 (PST)";
         var CHECKSUM = [%= checksum %];
     </script>
     
@@ -157,6 +157,7 @@ Ext.define('CycleCalculator', {
             Combined: 'blue'
         }
     },
+    cycleTimeData: null,
     snapsByOid: {},
     constructor: function (config) {
         this.mergeConfig(config);
@@ -176,11 +177,6 @@ Ext.define('CycleCalculator', {
              }
          },this);
          
-         var text = _.keys(cycle_time_data[0]) + '\n';
-         Ext.each(cycle_time_data, function(ctd){
-             text += _.values(ctd) + '\n';
-         });
-         console.log('cycleTimeData',cycle_time_data.length, text);
          
          var series = [];
          console.log(this.color);
@@ -195,6 +191,15 @@ Ext.define('CycleCalculator', {
          series.push(this._getTrendline(defect_series));
 
          categories = Rally.technicalservices.Toolbox.formatDateBuckets(date_buckets,this.dateFormat);
+         
+         var cycleTimeDataExport = [];
+         Ext.each(cycle_time_data, function(ctd){
+             ctd.startDate = Rally.util.DateTime.fromIsoString(ctd.startDate);
+             ctd.endDate = Rally.util.DateTime.fromIsoString(ctd.endDate);
+             cycleTimeDataExport.push(ctd);
+         });
+         this.cycleTimeDataExport = cycleTimeDataExport; 
+
          
          return {
             series: series,
@@ -358,6 +363,72 @@ Ext.define('CycleCalculator', {
         }
         return Ext.String.format(type_text);   
     },
+});
+Ext.define('Rally.technicalservices.FileUtilities', {
+    singleton: true,
+    logger: new Rally.technicalservices.Logger(),
+    
+    saveTextAsFile: function(textToWrite, fileName)
+    {
+        var textFileAsBlob = new Blob([textToWrite], {type:'text/plain'});
+        var fileNameToSaveAs = fileName;
+
+        var downloadLink = document.createElement("a");
+        downloadLink.download = fileNameToSaveAs;
+        downloadLink.innerHTML = "Download File";
+        if (window.webkitURL != null)
+        {
+            // Chrome allows the link to be clicked
+            // without actually adding it to the DOM.
+            downloadLink.href = window.webkitURL.createObjectURL(textFileAsBlob);
+        }
+        else
+        {
+            // Firefox requires the link to be added to the DOM
+            // before it can be clicked.
+            downloadLink.href = window.URL.createObjectURL(textFileAsBlob);
+            downloadLink.onclick = destroyClickedElement;
+            downloadLink.style.display = "none";
+            document.body.appendChild(downloadLink);
+        }
+        downloadLink.click();
+    },
+    destroyClickedElement: function(event)
+    {
+        document.body.removeChild(event.target);
+    },
+    convertDataArrayToCSVText: function(data_array, requestedFieldHash){
+       
+        var text = '';
+        Ext.each(Object.keys(requestedFieldHash), function(key){
+            text += requestedFieldHash[key] + ',';
+        });
+        text = text.replace(/,$/,'\n');
+        
+        Ext.each(data_array, function(d){
+            Ext.each(Object.keys(requestedFieldHash), function(key){
+                if (d[key]){
+                    if (typeof d[key] === 'object'){
+                        if (d[key].FormattedID) {
+                            text += Ext.String.format("\"{0}\",",d[key].FormattedID ); 
+                        } else if (d[key].Name) {
+                            text += Ext.String.format("\"{0}\",",d[key].Name );                    
+                        } else if (!isNaN(Date.parse(d[key]))){
+                            text += Ext.String.format("\"{0}\",",Rally.util.DateTime.formatWithDefaultDateTime(d[key]));
+                        }else {
+                            text += Ext.String.format("\"{0}\",",d[key].toString());
+                        }
+                    } else {
+                        text += Ext.String.format("\"{0}\",",d[key] );                    
+                    }
+                } else {
+                    text += ',';
+                }
+            },this);
+            text = text.replace(/,$/,'\n');
+        },this);
+        return text;
+    }
 });
 Ext.define('Rally.technicalservices.dialog.Filter',{
     extend: Rally.ui.dialog.Dialog,
@@ -1008,6 +1079,7 @@ Ext.define('CustomApp', {
             this.down('#cb-granularity').destroy();
             this.down('#btn-update').destroy();
             this.down('#btn-filter').destroy();
+            this.down('#btn-export').destroy();
         }
        
         var field = cb.getValue();
@@ -1090,6 +1162,14 @@ Ext.define('CustomApp', {
                 margin: 10,
                 handler: this._filter
             });
+            this.down('#selector_box').add({
+                xtype: 'rallybutton',
+                itemId: 'btn-export',
+                scope: this,
+                text: 'Export',
+                margin: 10,
+                handler: this._export
+            });
         }
     },
     _getStartState: function(){
@@ -1135,8 +1215,21 @@ Ext.define('CustomApp', {
                 this.setLoading(false);
                 var chart_data = calc.runCalculation(snapshots);
                 this._drawChart(chart_data);
+                this.exportData = calc.cycleTimeDataExport;
             }
         });
+    },
+    _export: function(){
+        if (this.exportData){
+            var keys = _.keys(this.exportData[0]);
+            console.log(keys, this.exportData);
+            var field_hash = {};
+            Ext.each(keys, function(key){
+                field_hash[key]=key;
+            });
+            var text = Rally.technicalservices.FileUtilities.convertDataArrayToCSVText(this.exportData, field_hash);
+            Rally.technicalservices.FileUtilities.saveTextAsFile(text, 'cycle-time.csv');
+        }
     },
     _drawChart: function(chart_data){
         this.logger.log('_drawChart');

@@ -155,6 +155,7 @@ Ext.define('CustomApp', {
             this.down('#cb-granularity').destroy();
             this.down('#btn-update').destroy();
             this.down('#btn-filter').destroy();
+            this.down('#btn-export').destroy();
         }
        
         var field = cb.getValue();
@@ -237,6 +238,14 @@ Ext.define('CustomApp', {
                 margin: 10,
                 handler: this._filter
             });
+            this.down('#selector_box').add({
+                xtype: 'rallybutton',
+                itemId: 'btn-export',
+                scope: this,
+                text: 'Export',
+                margin: 10,
+                handler: this._export
+            });
         }
     },
     _getStartState: function(){
@@ -282,8 +291,21 @@ Ext.define('CustomApp', {
                 this.setLoading(false);
                 var chart_data = calc.runCalculation(snapshots);
                 this._drawChart(chart_data);
+                this.exportData = calc.cycleTimeDataExport;
             }
         });
+    },
+    _export: function(){
+        if (this.exportData){
+            var keys = _.keys(this.exportData[0]);
+            console.log(keys, this.exportData);
+            var field_hash = {};
+            Ext.each(keys, function(key){
+                field_hash[key]=key;
+            });
+            var text = Rally.technicalservices.FileUtilities.convertDataArrayToCSVText(this.exportData, field_hash);
+            Rally.technicalservices.FileUtilities.saveTextAsFile(text, 'cycle-time.csv');
+        }
     },
     _drawChart: function(chart_data){
         this.logger.log('_drawChart');
