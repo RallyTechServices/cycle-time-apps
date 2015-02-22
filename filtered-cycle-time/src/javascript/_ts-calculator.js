@@ -17,6 +17,7 @@ Ext.define('CycleCalculator', {
             Combined: 'blue'
         }
     },
+    cycleTimeData: null,
     snapsByOid: {},
     constructor: function (config) {
         this.mergeConfig(config);
@@ -36,11 +37,6 @@ Ext.define('CycleCalculator', {
              }
          },this);
          
-         var text = _.keys(cycle_time_data[0]) + '\n';
-         Ext.each(cycle_time_data, function(ctd){
-             text += _.values(ctd) + '\n';
-         });
-         console.log('cycleTimeData',cycle_time_data.length, text);
          
          var series = [];
          console.log(this.color);
@@ -55,6 +51,15 @@ Ext.define('CycleCalculator', {
          series.push(this._getTrendline(defect_series));
 
          categories = Rally.technicalservices.Toolbox.formatDateBuckets(date_buckets,this.dateFormat);
+         
+         var cycleTimeDataExport = [];
+         Ext.each(cycle_time_data, function(ctd){
+             ctd.startDate = Rally.util.DateTime.fromIsoString(ctd.startDate);
+             ctd.endDate = Rally.util.DateTime.fromIsoString(ctd.endDate);
+             cycleTimeDataExport.push(ctd);
+         });
+         this.cycleTimeDataExport = cycleTimeDataExport; 
+
          
          return {
             series: series,
