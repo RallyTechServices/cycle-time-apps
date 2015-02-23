@@ -3,10 +3,10 @@
 <head>
     <title>Filtered Cycle Time</title>
     <!--  (c) 2014 Rally Software Development Corp.  All Rights Reserved. -->
-    <!--  Build Date: Sun Feb 22 2015 14:04:47 GMT-0800 (PST) -->
+    <!--  Build Date: Mon Feb 23 2015 08:38:58 GMT-0800 (PST) -->
     
     <script type="text/javascript">
-        var APP_BUILD_DATE = "Sun Feb 22 2015 14:04:47 GMT-0800 (PST)";
+        var APP_BUILD_DATE = "Mon Feb 23 2015 08:38:58 GMT-0800 (PST)";
         var CHECKSUM = [%= checksum %];
     </script>
     
@@ -262,28 +262,25 @@ Ext.define('CycleCalculator', {
         //Assumes snaps are stored in ascending date order.  
         var start_date = null, end_date = null, between_states = false, days = null; 
         var type = snaps[0]._TypeHierarchy.slice(-1)[0];
+        
+        var previous_state_index = -1;
+        var state_index = -1;
         Ext.each(snaps, function(snap){
-            var state_index = -1;  
+            
             if (snap[field]){
+                previous_state_index = state_index;
                 state_index = _.indexOf(precedence, snap[field]);
             }
-            if (state_index >= start_index && start_date == null){
+            if (state_index >= start_index && previous_state_index < start_index){
                 start_date = Rally.util.DateTime.fromIsoString(snap._ValidFrom);  
-                between_states = true;  
             }
 
-            //This accounts for the case where the state dips back down 
-            if (between_states == false && state_index < end_index && start_date != null){
-                between_states = true;  
-            }
-            
-            if (between_states && state_index >= end_index){
+            if (state_index >= end_index && previous_state_index < end_index){
                 end_date = Rally.util.DateTime.fromIsoString(snap._ValidFrom);
                 if (start_date != null){
                     seconds = Rally.util.DateTime.getDifference(end_date,start_date,"second");
                     days = Math.floor(seconds/86400) + 1;  
                 }
-                between_states = false;  
                 include = this._snapMeetsFilterCriteria(snap);
             }
             

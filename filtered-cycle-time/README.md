@@ -15,12 +15,13 @@ Data includes defects and hierarchical requirements that have no children.
 If an artifact was moved from one project to another before completing the cycle, the data will not be captured for that artifact or 
 the start date may be the first date that the data was in a state >= start state or >= end state within the scope of the app. 
 
-Cycle time is measured in days from the first date the artifact state goes into a state >= the selected start state to the 
-last date the artifact state moves into a state >= the selected end state from a state < the selected end state.  
+Cycle time is measured in days from the last date the artifact state goes into a state >= the selected start state from a state < the selected start state
+to the last date the artifact state moves into a state >= the selected end state from a state < the selected end state.  
 Cycle time for each data point is calculated by getting the difference in seconds between the first and last dates, 
-converting days and rounding up.  
+converting to days, taking the floor of that calculation and adding 1.  
 
-An artifact whose cycle time was 1.01 seconds will have a data point of 1 day.  
+An artifact whose cycle time was 1.01 seconds will have a data point of 1 day.
+An artifact whose cycle time was 0 (the artifact went straight into the end state) will have a cycle time of 1 day.    
 
 If no start state is selected, the cycle time will start from the first snapshot or from the first date that the artifact was moved 
 into the selected project.  
