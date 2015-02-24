@@ -3,11 +3,11 @@
 <head>
     <title>Flow Efficiency</title>
     <!--  (c) 2014 Rally Software Development Corp.  All Rights Reserved. -->
-    <!--  Build Date: Mon Feb 23 2015 11:56:23 GMT-0800 (PST) -->
+    <!--  Build Date: Mon Feb 23 2015 18:47:03 GMT-0800 (PST) -->
     
     <script type="text/javascript">
-        var APP_BUILD_DATE = "Mon Feb 23 2015 11:56:23 GMT-0800 (PST)";
-        var CHECKSUM = 59514983087;
+        var APP_BUILD_DATE = "Mon Feb 23 2015 18:47:03 GMT-0800 (PST)";
+        var CHECKSUM = 62764518296;
     </script>
     
     <script type="text/javascript" src="/apps/2.0rc3/sdk.js"></script>
@@ -286,47 +286,50 @@ Ext.define('CycleCalculator', {
                 include = this._snapMeetsFilterCriteria(snap);
             }
             
-            console.log('blocked', snap.Blocked, snap["_PreviousValues.Blocked"]);
-            if ((snap.Blocked != snap["_PreviousValues.Blocked"])){
-                if (snap['Blocked'] === true){
-                    blocked_date = Rally.util.DateTime.fromIsoString(snap._ValidFrom);
-                    console.log('set blocked _time',blocked_date);
-                } else {
-                    if (snap.Blocked === false && snap["_PreviousValues.Blocked"] === true){
-                        unblocked_date = Rally.util.DateTime.fromIsoString(snap._ValidFrom);
-                        console.log('set unblocked time', unblocked_date);
-                        if (blocked_date && unblocked_date){
-                            blocked_time += Rally.util.DateTime.getDifference(unblocked_date, blocked_date,"second");
-                            console.log('add blocked time', blocked_date, unblocked_date, blocked_time);
-                            blocked_date = null;
-                            unblocked_date = null; 
-                        }
-                    }
-                }
-            }
-            
-            if ((snap.Ready != snap["_PreviousValues.Ready"])){
-                if (snap.Ready === true){
-                    ready_date = Rally.util.DateTime.fromIsoString(snap._ValidFrom);
-                    console.log('set ready _time',ready_date);         
-                } else {
-                    if (snap.Ready === false && snap["_PreviousValues.Ready"] === true){
-                        unready_date = Rally.util.DateTime.fromIsoString(snap._ValidFrom);
-                        console.log('set unready time', unready_date);
-                        if (ready_date && unready_date){
-                            ready_time += Rally.util.DateTime.getDifference(unready_date, ready_date,"second");
-                            console.log('add ready time', ready_date, unready_date, ready_time);
-                            ready_date = null;
-                            unready_date = null; 
-                        }
-                    }
-                }
-                
-            }
             
         }, this);
-       // blocked_time = Math.floor(blocked_time/86400) + 1;
-        //ready_time = Math.floor(ready_time/86400) + 1;
+        
+        var blocked_time = this._getTimeInBooleanState(snaps, 'Blocked', start_date, end_date);
+        var ready_time = this._getTimeInBooleanState(snaps, 'Ready',start_date, end_date);
+//            console.log('blocked', snap.Blocked, snap["_PreviousValues.Blocked"]);
+//            if ((snap.Blocked != snap["_PreviousValues.Blocked"])){
+//                if (snap['Blocked'] === true){
+//                    blocked_date = Rally.util.DateTime.fromIsoString(snap._ValidFrom);
+//                    console.log('set blocked _time',blocked_date);
+//                } else {
+//                    if (snap.Blocked === false && snap["_PreviousValues.Blocked"] === true){
+//                        unblocked_date = Rally.util.DateTime.fromIsoString(snap._ValidFrom);
+//                        console.log('set unblocked time', unblocked_date);
+//                        if (blocked_date && unblocked_date){
+//                            blocked_time += Rally.util.DateTime.getDifference(unblocked_date, blocked_date,"second");
+//                            console.log('add blocked time', blocked_date, unblocked_date, blocked_time);
+//                            blocked_date = null;
+//                            unblocked_date = null; 
+//                        }
+//                    }
+//                }
+//            }
+//            
+//            if ((snap.Ready != snap["_PreviousValues.Ready"])){
+//                if (snap.Ready === true){
+//                    ready_date = Rally.util.DateTime.fromIsoString(snap._ValidFrom);
+//                    console.log('set ready _time',ready_date);         
+//                } else {
+//                    if (snap.Ready === false && snap["_PreviousValues.Ready"] === true){
+//                        unready_date = Rally.util.DateTime.fromIsoString(snap._ValidFrom);
+//                        console.log('set unready time', unready_date);
+//                        if (ready_date && unready_date){
+//                            ready_time += Rally.util.DateTime.getDifference(unready_date, ready_date,"second");
+//                            console.log('add ready time', ready_date, unready_date, ready_time);
+//                            ready_date = null;
+//                            unready_date = null; 
+//                        }
+//                    }
+//                }
+//                
+//            }
+            
+       // }, this);
         
         return {formattedId: snaps[0].FormattedID, 
                 seconds: seconds, 
@@ -337,6 +340,46 @@ Ext.define('CycleCalculator', {
                 include: include,
                 blockedTime: blocked_time,
                 readyTime: ready_time};
+    },
+    _getTimeInBooleanState: function(snaps, stateField, startDate, endDate){
+        var current, previous = null; 
+        var true_date = null, false_date = null; 
+        var true_time = 0;
+        
+        
+        Ext.each(snaps, function(snap){
+            previous = current;  
+            current = snap[stateField];
+            
+            var valid_to = Rally.util.DateTime.fromIsoString(snap._ValidTo);
+            var valid_from = Rally.util.DateTime.fromIsoString(snap._ValidFrom);
+
+            if (valid_to >= startDate && valid_from <= endDate){
+                if (current != previous){
+                    if (current === true){
+                        true_date = valid_from; 
+                        if (valid_from < startDate){
+                            true_date = startDate;
+                        }
+                    } else {
+                        if (current === false && previous === true){
+                            false_date = valid_from;
+                            if (true_date && false_date){
+                                true_time += Rally.util.DateTime.getDifference(false_date,true_date,"second");
+                                true_date = null;
+                                false_date = null;  
+                            }
+                        }
+                    }
+                }
+            }
+        },this);
+        
+        if (true_date != null && false_date == null){
+            true_time += Rally.util.DateTime.getDifference(endDate,true_date,"second");
+        }
+        return true_time; 
+
     },
     _snapMeetsFilterCriteria: function(snap){
         var is_filtered = true;
@@ -383,7 +426,7 @@ Ext.define('CycleCalculator', {
                         var adjusted_cycle_time = (cdata.seconds - cdata.blockedTime - cdata.readyTime);  
                         
                         console.log('efficiency', adjusted_cycle_time, cdata.days );
-                        efficiency = (adjusted_cycle_time/cdata.seconds) * 100
+                        efficiency = (adjusted_cycle_time/cdata.seconds) 
                     }
                     series_raw_data[i].push(efficiency);
                 }
@@ -1327,7 +1370,7 @@ Ext.define('CustomApp', {
                 yAxis: [
                     {
                         title: {
-                            text: '% Efficiency'
+                            text: 'Flow Efficiency'
                         },
                        // min: 0
                     }
@@ -1335,7 +1378,7 @@ Ext.define('CustomApp', {
                 plotOptions: {
                     series: {
                         dataLabels: {
-                            format: '{point.y:.1f}%'
+                            format: '{point.y:.2f}'
                         },
                         marker: {
                             enabled: false,
@@ -1355,7 +1398,7 @@ Ext.define('CustomApp', {
                     line: {
                         connectNulls: true,
                         tooltip: {
-                            pointFormat: '<span style="color:{series.color}">\u25CF</span> {series.name}: <b>{point.y:.1f}%</b><br/>'
+                            pointFormat: '<span style="color:{series.color}">\u25CF</span> {series.name}: <b>{point.y:.2f}</b><br/>'
                         }
                     }
                 },
@@ -1364,7 +1407,7 @@ Ext.define('CustomApp', {
         });        
     },
     _beforeChartRender: function(){
-        this.chartConfig.plotOptions.line.tooltip.pointFormat = '<span style="color:{series.color}">\u25CF</span> {series.name}: <b>{point.y:.1f}% {point.n}</b><br/>';
+        this.chartConfig.plotOptions.line.tooltip.pointFormat = '<span style="color:{series.color}">\u25CF</span> {series.name}: <b>{point.y:.2f} {point.n}</b><br/>';
     },
     _setFilters: function(filters){
         this.dataFilters = filters;  
@@ -1477,7 +1520,7 @@ Ext.define('CustomApp', {
     },
     _getFetchFields: function(){
         var field = this.down('#cb-field').getValue();
-        var fetch_fields = ['ObjectID',field,'_TypeHierarchy','_SnapshotNumber','ScheduleState','FormattedID','Blocked','_PreviousValues.Blocked','Ready','_PreviousValues.Ready'];
+        var fetch_fields = ['ObjectID',field,'_TypeHierarchy','_SnapshotNumber','ScheduleState','FormattedID','Blocked','Ready','_ValidTo','_ValidFrom'];
         
         var filter_fields = [];  
         Ext.each(this.dataFilters, function(f){

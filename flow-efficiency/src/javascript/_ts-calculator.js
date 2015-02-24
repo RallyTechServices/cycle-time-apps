@@ -146,47 +146,50 @@ Ext.define('CycleCalculator', {
                 include = this._snapMeetsFilterCriteria(snap);
             }
             
-            console.log('blocked', snap.Blocked, snap["_PreviousValues.Blocked"]);
-            if ((snap.Blocked != snap["_PreviousValues.Blocked"])){
-                if (snap['Blocked'] === true){
-                    blocked_date = Rally.util.DateTime.fromIsoString(snap._ValidFrom);
-                    console.log('set blocked _time',blocked_date);
-                } else {
-                    if (snap.Blocked === false && snap["_PreviousValues.Blocked"] === true){
-                        unblocked_date = Rally.util.DateTime.fromIsoString(snap._ValidFrom);
-                        console.log('set unblocked time', unblocked_date);
-                        if (blocked_date && unblocked_date){
-                            blocked_time += Rally.util.DateTime.getDifference(unblocked_date, blocked_date,"second");
-                            console.log('add blocked time', blocked_date, unblocked_date, blocked_time);
-                            blocked_date = null;
-                            unblocked_date = null; 
-                        }
-                    }
-                }
-            }
-            
-            if ((snap.Ready != snap["_PreviousValues.Ready"])){
-                if (snap.Ready === true){
-                    ready_date = Rally.util.DateTime.fromIsoString(snap._ValidFrom);
-                    console.log('set ready _time',ready_date);         
-                } else {
-                    if (snap.Ready === false && snap["_PreviousValues.Ready"] === true){
-                        unready_date = Rally.util.DateTime.fromIsoString(snap._ValidFrom);
-                        console.log('set unready time', unready_date);
-                        if (ready_date && unready_date){
-                            ready_time += Rally.util.DateTime.getDifference(unready_date, ready_date,"second");
-                            console.log('add ready time', ready_date, unready_date, ready_time);
-                            ready_date = null;
-                            unready_date = null; 
-                        }
-                    }
-                }
-                
-            }
             
         }, this);
-       // blocked_time = Math.floor(blocked_time/86400) + 1;
-        //ready_time = Math.floor(ready_time/86400) + 1;
+        
+        var blocked_time = this._getTimeInBooleanState(snaps, 'Blocked', start_date, end_date);
+        var ready_time = this._getTimeInBooleanState(snaps, 'Ready',start_date, end_date);
+//            console.log('blocked', snap.Blocked, snap["_PreviousValues.Blocked"]);
+//            if ((snap.Blocked != snap["_PreviousValues.Blocked"])){
+//                if (snap['Blocked'] === true){
+//                    blocked_date = Rally.util.DateTime.fromIsoString(snap._ValidFrom);
+//                    console.log('set blocked _time',blocked_date);
+//                } else {
+//                    if (snap.Blocked === false && snap["_PreviousValues.Blocked"] === true){
+//                        unblocked_date = Rally.util.DateTime.fromIsoString(snap._ValidFrom);
+//                        console.log('set unblocked time', unblocked_date);
+//                        if (blocked_date && unblocked_date){
+//                            blocked_time += Rally.util.DateTime.getDifference(unblocked_date, blocked_date,"second");
+//                            console.log('add blocked time', blocked_date, unblocked_date, blocked_time);
+//                            blocked_date = null;
+//                            unblocked_date = null; 
+//                        }
+//                    }
+//                }
+//            }
+//            
+//            if ((snap.Ready != snap["_PreviousValues.Ready"])){
+//                if (snap.Ready === true){
+//                    ready_date = Rally.util.DateTime.fromIsoString(snap._ValidFrom);
+//                    console.log('set ready _time',ready_date);         
+//                } else {
+//                    if (snap.Ready === false && snap["_PreviousValues.Ready"] === true){
+//                        unready_date = Rally.util.DateTime.fromIsoString(snap._ValidFrom);
+//                        console.log('set unready time', unready_date);
+//                        if (ready_date && unready_date){
+//                            ready_time += Rally.util.DateTime.getDifference(unready_date, ready_date,"second");
+//                            console.log('add ready time', ready_date, unready_date, ready_time);
+//                            ready_date = null;
+//                            unready_date = null; 
+//                        }
+//                    }
+//                }
+//                
+//            }
+            
+       // }, this);
         
         return {formattedId: snaps[0].FormattedID, 
                 seconds: seconds, 
@@ -197,6 +200,46 @@ Ext.define('CycleCalculator', {
                 include: include,
                 blockedTime: blocked_time,
                 readyTime: ready_time};
+    },
+    _getTimeInBooleanState: function(snaps, stateField, startDate, endDate){
+        var current, previous = null; 
+        var true_date = null, false_date = null; 
+        var true_time = 0;
+        
+        
+        Ext.each(snaps, function(snap){
+            previous = current;  
+            current = snap[stateField];
+            
+            var valid_to = Rally.util.DateTime.fromIsoString(snap._ValidTo);
+            var valid_from = Rally.util.DateTime.fromIsoString(snap._ValidFrom);
+
+            if (valid_to >= startDate && valid_from <= endDate){
+                if (current != previous){
+                    if (current === true){
+                        true_date = valid_from; 
+                        if (valid_from < startDate){
+                            true_date = startDate;
+                        }
+                    } else {
+                        if (current === false && previous === true){
+                            false_date = valid_from;
+                            if (true_date && false_date){
+                                true_time += Rally.util.DateTime.getDifference(false_date,true_date,"second");
+                                true_date = null;
+                                false_date = null;  
+                            }
+                        }
+                    }
+                }
+            }
+        },this);
+        
+        if (true_date != null && false_date == null){
+            true_time += Rally.util.DateTime.getDifference(endDate,true_date,"second");
+        }
+        return true_time; 
+
     },
     _snapMeetsFilterCriteria: function(snap){
         var is_filtered = true;
@@ -243,7 +286,7 @@ Ext.define('CycleCalculator', {
                         var adjusted_cycle_time = (cdata.seconds - cdata.blockedTime - cdata.readyTime);  
                         
                         console.log('efficiency', adjusted_cycle_time, cdata.days );
-                        efficiency = (adjusted_cycle_time/cdata.seconds) * 100
+                        efficiency = (adjusted_cycle_time/cdata.seconds) 
                     }
                     series_raw_data[i].push(efficiency);
                 }

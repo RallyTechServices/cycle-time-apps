@@ -349,7 +349,7 @@ Ext.define('CustomApp', {
                 yAxis: [
                     {
                         title: {
-                            text: '% Efficiency'
+                            text: 'Flow Efficiency'
                         },
                        // min: 0
                     }
@@ -357,7 +357,7 @@ Ext.define('CustomApp', {
                 plotOptions: {
                     series: {
                         dataLabels: {
-                            format: '{point.y:.1f}%'
+                            format: '{point.y:.2f}'
                         },
                         marker: {
                             enabled: false,
@@ -377,7 +377,7 @@ Ext.define('CustomApp', {
                     line: {
                         connectNulls: true,
                         tooltip: {
-                            pointFormat: '<span style="color:{series.color}">\u25CF</span> {series.name}: <b>{point.y:.1f}%</b><br/>'
+                            pointFormat: '<span style="color:{series.color}">\u25CF</span> {series.name}: <b>{point.y:.2f}</b><br/>'
                         }
                     }
                 },
@@ -386,7 +386,7 @@ Ext.define('CustomApp', {
         });        
     },
     _beforeChartRender: function(){
-        this.chartConfig.plotOptions.line.tooltip.pointFormat = '<span style="color:{series.color}">\u25CF</span> {series.name}: <b>{point.y:.1f}% {point.n}</b><br/>';
+        this.chartConfig.plotOptions.line.tooltip.pointFormat = '<span style="color:{series.color}">\u25CF</span> {series.name}: <b>{point.y:.2f} {point.n}</b><br/>';
     },
     _setFilters: function(filters){
         this.dataFilters = filters;  
@@ -499,7 +499,7 @@ Ext.define('CustomApp', {
     },
     _getFetchFields: function(){
         var field = this.down('#cb-field').getValue();
-        var fetch_fields = ['ObjectID',field,'_TypeHierarchy','_SnapshotNumber','ScheduleState','FormattedID','Blocked','_PreviousValues.Blocked','Ready','_PreviousValues.Ready'];
+        var fetch_fields = ['ObjectID',field,'_TypeHierarchy','_SnapshotNumber','ScheduleState','FormattedID','Blocked','Ready','_ValidTo','_ValidFrom'];
         
         var filter_fields = [];  
         Ext.each(this.dataFilters, function(f){
