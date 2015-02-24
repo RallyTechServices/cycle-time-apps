@@ -2,9 +2,16 @@ Ext.define('CustomApp', {
     extend: 'Rally.app.App',
     componentCls: 'app',
     logger: new Rally.technicalservices.Logger(),
+    exportHash: {
+        formattedId: 'Formatted ID',
+        days: 'Cycle Time (Days)',
+        startDate: 'Start Date',
+        endDate: 'End Date'
+    },
     items: [
         {xtype:'container',itemId:'settings_box'},
         {xtype:'container',itemId:'selector_box', layout: {type: 'hbox'}},
+        {xtype:'container',itemId:'button_box', layout: {type: 'hbox'}},
     //    {xtype:'container',itemId:'filter_box', layout: {type: 'vbox'}, title: 'Filter by', border: 1, style: {borderColor: 'gray', borderStyle: 'solid'}},
         {xtype:'container',itemId:'display_box'},
         {xtype:'container',
@@ -198,7 +205,7 @@ Ext.define('CustomApp', {
                 valueField: 'value',
                 fieldLabel:  'Granularity',
                 labelAlign: 'right',
-                labelWidth: 60,
+                labelWidth: 65,
                 margin: 10
             });
 
@@ -214,36 +221,39 @@ Ext.define('CustomApp', {
                 valueField: 'value',
                 fieldLabel:  'Date Range',
                 labelAlign: 'right',
-                labelWidth: 85,
+                labelWidth: 65,
                 width: 250,
                 value: this.defaultDateRange,
                 margin: 10
             });
             
-            
-            this.down('#selector_box').add({
+            var button_width = 75; 
+            this.down('#button_box').add({
                 xtype: 'rallybutton',
                 itemId: 'btn-update',
                 text: 'Update',
                 scope: this,
-                margin: 10,
+                width: button_width,
+                margin: '5 5 5 65',
                 handler: this._createChart
             });
             
-            this.down('#selector_box').add({
+            this.down('#button_box').add({
                 xtype: 'rallybutton',
                 itemId: 'btn-filter',
                 scope: this,
                 text: 'Filter',
-                margin: 10,
+                width: button_width,
+                margin: 5,
                 handler: this._filter
             });
-            this.down('#selector_box').add({
+            this.down('#button_box').add({
                 xtype: 'rallybutton',
                 itemId: 'btn-export',
                 scope: this,
                 text: 'Export',
-                margin: 10,
+                width: button_width,
+                margin: 5,
                 handler: this._export
             });
         }
@@ -267,11 +277,6 @@ Ext.define('CustomApp', {
         var filters = this.dataFilters;  
         
         this.logger.log('_createChart', field, start_state, this._getEndState(), granularity, start_date, end_date);
-        
-//        if (!this._validateSelectedStates()){
-//            alert('The From State must come before the To State.');
-//            return;
-//        }
 
         this.setLoading('Fetching data...');
         this.loadSnapshots([this._getStoreConfig('Defect'),this._getStoreConfig('HierarchicalRequirement')]).then({
@@ -297,13 +302,9 @@ Ext.define('CustomApp', {
     },
     _export: function(){
         if (this.exportData){
-            var keys = _.keys(this.exportData[0]);
-            console.log(keys, this.exportData);
-            var field_hash = {};
-            Ext.each(keys, function(key){
-                field_hash[key]=key;
-            });
-            var text = Rally.technicalservices.FileUtilities.convertDataArrayToCSVText(this.exportData, field_hash);
+
+            this.logger.log('_exportData', this.exportHash);
+            var text = Rally.technicalservices.FileUtilities.convertDataArrayToCSVText(this.exportData, this.exportHash);
             Rally.technicalservices.FileUtilities.saveTextAsFile(text, 'cycle-time.csv');
         }
     },
