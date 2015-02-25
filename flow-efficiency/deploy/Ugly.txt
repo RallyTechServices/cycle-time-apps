@@ -1,12 +1,12 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Filtered Cycle Time</title>
+    <title>Flow Efficiency</title>
     <!--  (c) 2013 Rally Software Development Corp.  All Rights Reserved. -->
-    <!--  Build Date: Wed Feb 25 2015 13:43:04 GMT-0800 (PST) -->
+    <!--  Build Date: Wed Feb 25 2015 13:46:04 GMT-0800 (PST) -->
     
     <script type="text/javascript">
-        var APP_BUILD_DATE = "Wed Feb 25 2015 13:43:04 GMT-0800 (PST)";
+        var APP_BUILD_DATE = "Wed Feb 25 2015 13:46:04 GMT-0800 (PST)";
         var CHECKSUM = [%= checksum %];
     </script>
     
@@ -17,7 +17,7 @@
             
             
                Rally.launchApp('CustomApp', {
-                   name: 'Filtered Cycle Time'
+                   name: 'Flow Efficiency'
                });
         });
     </script>
@@ -40,9 +40,6 @@
     margin-top: 25px;
     margin-right: 5px;
     cursor: pointer;
-}
-.ts-filter {
-	text-align: center;
 }
     </style>
 

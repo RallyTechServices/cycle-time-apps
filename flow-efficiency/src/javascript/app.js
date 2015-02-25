@@ -2,17 +2,10 @@ Ext.define('CustomApp', {
     extend: 'Rally.app.App',
     componentCls: 'app',
     logger: new Rally.technicalservices.Logger(),
-    exportHash: {
-        formattedId: 'Formatted ID',
-        days: 'Cycle Time (Days)',
-        startDate: 'Start Date',
-        endDate: 'End Date'
-    },
     items: [
         {xtype:'container',itemId:'settings_box'},
         {xtype:'container',itemId:'selector_box', layout: {type: 'hbox'}},
         {xtype:'container',itemId:'button_box', layout: {type: 'hbox'}},
-    //    {xtype:'container',itemId:'filter_box', layout: {type: 'vbox'}, title: 'Filter by', border: 1, style: {borderColor: 'gray', borderStyle: 'solid'}},
         {xtype:'container',itemId:'display_box'},
         {xtype:'container',
             itemId:'filter_box',
@@ -21,6 +14,14 @@ Ext.define('CustomApp', {
             tpl:'<div class="ts-filter"><b>Applied Filters:</b><br><tpl for=".">{displayProperty} {operator} {value}<br></tpl></div>'},
         {xtype:'tsinfolink'}
     ],
+    exportHash: {
+        formattedId: 'Formatted ID',
+        days: 'Cycle Time (Days)',
+        startDate: 'Start Date',
+        endDate: 'End Date',
+        pctBlocked: '% Cycle Time Blocked',
+        pctReady: '% Cycle Time Ready'
+    },
     config: {
         defaultSettings: {
             cycleStateFields:  "ScheduleState"
@@ -81,8 +82,6 @@ Ext.define('CustomApp', {
                 scope: this,
                 select: this._updateDropdowns,
                 ready: function(cb){
-                  //  console.log(this.defaultField);
-                  //  cb.setValue(this.defaultField);
                     this._updateDropdowns(cb);
                 }
             }
@@ -227,7 +226,7 @@ Ext.define('CustomApp', {
                 margin: 10
             });
             
-            var button_width = 75; 
+            var button_width = 75;
             this.down('#button_box').add({
                 xtype: 'rallybutton',
                 itemId: 'btn-update',
@@ -302,10 +301,9 @@ Ext.define('CustomApp', {
     },
     _export: function(){
         if (this.exportData){
-
-            this.logger.log('_exportData', this.exportHash);
+            this.logger.log('_export', this.exportHash);
             var text = Rally.technicalservices.FileUtilities.convertDataArrayToCSVText(this.exportData, this.exportHash);
-            Rally.technicalservices.FileUtilities.saveTextAsFile(text, 'cycle-time.csv');
+            Rally.technicalservices.FileUtilities.saveTextAsFile(text, 'flow-efficiency.csv');
         }
     },
     _drawChart: function(chart_data){
@@ -318,7 +316,7 @@ Ext.define('CustomApp', {
         }
 
         var granularity_rec = this.down('#cb-granularity').getRecord();
-        var title_text = 'Average Cycle Time from ' + (this._getStartState() || '(None)') + ' to ' + this._getEndState();
+        var title_text = 'Average Flow Efficiency from ' + (this._getStartState() || '(None)') + ' to ' + this._getEndState();
         var tick_interval = granularity_rec.get('tickInterval');  
         
         this.down('#display_box').add({
@@ -354,15 +352,15 @@ Ext.define('CustomApp', {
                 yAxis: [
                     {
                         title: {
-                            text: 'Days'
+                            text: '% Flow Efficiency'
                         },
-                        min: 0
+                       // min: 0
                     }
                 ],
                 plotOptions: {
                     series: {
                         dataLabels: {
-                            format: '{point.y:.1f}'
+                            format: '{point.y:.1f}%'
                         },
                         marker: {
                             enabled: false,
@@ -382,7 +380,7 @@ Ext.define('CustomApp', {
                     line: {
                         connectNulls: true,
                         tooltip: {
-                            pointFormat: '<span style="color:{series.color}">\u25CF</span> {series.name}: <b>{point.y:.1f}</b><br/>'
+                            pointFormat: '<span style="color:{series.color}">\u25CF</span> {series.name}: <b>{point.y:.1f}%</b><br/>'
                         }
                     }
                 },
@@ -391,7 +389,7 @@ Ext.define('CustomApp', {
         });        
     },
     _beforeChartRender: function(){
-        this.chartConfig.plotOptions.line.tooltip.pointFormat = '<span style="color:{series.color}">\u25CF</span> {series.name}: <b>{point.y:.1f} {point.n}</b><br/>';
+        this.chartConfig.plotOptions.line.tooltip.pointFormat = '<span style="color:{series.color}">\u25CF</span> {series.name}: <b>{point.y:.1f}% {point.n}</b><br/>';
     },
     _setFilters: function(filters){
         this.dataFilters = filters;  
@@ -504,7 +502,7 @@ Ext.define('CustomApp', {
     },
     _getFetchFields: function(){
         var field = this.down('#cb-field').getValue();
-        var fetch_fields = ['ObjectID',field,'_TypeHierarchy','_SnapshotNumber','ScheduleState','FormattedID'];
+        var fetch_fields = ['ObjectID',field,'_TypeHierarchy','_SnapshotNumber','ScheduleState','FormattedID','Blocked','Ready','_ValidTo','_ValidFrom'];
         
         var filter_fields = [];  
         Ext.each(this.dataFilters, function(f){

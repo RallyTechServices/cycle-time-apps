@@ -125,9 +125,12 @@ Ext.define('CycleCalculator', {
         
         var previous_state_index = -1;
         var state_index = -1;
+        var blocked_time = 0, unblocked_date = null, blocked_date = null;  
+        var ready_time = 0, unready_date = null, ready_date = null; 
         var seconds = null;
         var days = null;
         var include = false; 
+
         Ext.each(snaps, function(snap){
             
             if (snap[field]){
@@ -147,9 +150,100 @@ Ext.define('CycleCalculator', {
                 include = this._snapMeetsFilterCriteria(snap);
             }
             
+            
         }, this);
+        
+        var blocked_time = this._getTimeInBooleanState(snaps, 'Blocked', start_date, end_date);
+        var ready_time = this._getTimeInBooleanState(snaps, 'Ready',start_date, end_date);
+//            console.log('blocked', snap.Blocked, snap["_PreviousValues.Blocked"]);
+//            if ((snap.Blocked != snap["_PreviousValues.Blocked"])){
+//                if (snap['Blocked'] === true){
+//                    blocked_date = Rally.util.DateTime.fromIsoString(snap._ValidFrom);
+//                    console.log('set blocked _time',blocked_date);
+//                } else {
+//                    if (snap.Blocked === false && snap["_PreviousValues.Blocked"] === true){
+//                        unblocked_date = Rally.util.DateTime.fromIsoString(snap._ValidFrom);
+//                        console.log('set unblocked time', unblocked_date);
+//                        if (blocked_date && unblocked_date){
+//                            blocked_time += Rally.util.DateTime.getDifference(unblocked_date, blocked_date,"second");
+//                            console.log('add blocked time', blocked_date, unblocked_date, blocked_time);
+//                            blocked_date = null;
+//                            unblocked_date = null; 
+//                        }
+//                    }
+//                }
+//            }
+//            
+//            if ((snap.Ready != snap["_PreviousValues.Ready"])){
+//                if (snap.Ready === true){
+//                    ready_date = Rally.util.DateTime.fromIsoString(snap._ValidFrom);
+//                    console.log('set ready _time',ready_date);         
+//                } else {
+//                    if (snap.Ready === false && snap["_PreviousValues.Ready"] === true){
+//                        unready_date = Rally.util.DateTime.fromIsoString(snap._ValidFrom);
+//                        console.log('set unready time', unready_date);
+//                        if (ready_date && unready_date){
+//                            ready_time += Rally.util.DateTime.getDifference(unready_date, ready_date,"second");
+//                            console.log('add ready time', ready_date, unready_date, ready_time);
+//                            ready_date = null;
+//                            unready_date = null; 
+//                        }
+//                    }
+//                }
+//                
+//            }
+            
+       // }, this);
+        
+        return {formattedId: snaps[0].FormattedID, 
+                seconds: seconds, 
+                days: days, 
+                endDate: end_date, 
+                startDate: start_date, 
+                artifactType: type, 
+                include: include,
+                blockedTime: blocked_time,
+                readyTime: ready_time};
+    },
+    _getTimeInBooleanState: function(snaps, stateField, startDate, endDate){
+        var current, previous = null; 
+        var true_date = null, false_date = null; 
+        var true_time = 0;
+        
+        
+        Ext.each(snaps, function(snap){
+            previous = current;  
+            current = snap[stateField];
+            
+            var valid_to = Rally.util.DateTime.fromIsoString(snap._ValidTo);
+            var valid_from = Rally.util.DateTime.fromIsoString(snap._ValidFrom);
 
-        return {formattedId: snaps[0].FormattedID, seconds: seconds, days: days, endDate: end_date, startDate: start_date, artifactType: type, include: include };
+            if (valid_to >= startDate && valid_from <= endDate){
+                if (current != previous){
+                    if (current === true){
+                        true_date = valid_from; 
+                        if (valid_from < startDate){
+                            true_date = startDate;
+                        }
+                    } else {
+                        if (current === false && previous === true){
+                            false_date = valid_from;
+                            if (true_date && false_date){
+                                true_time += Rally.util.DateTime.getDifference(false_date,true_date,"second");
+                                true_date = null;
+                                false_date = null;  
+                            }
+                        }
+                    }
+                }
+            }
+        },this);
+        
+        if (true_date != null && false_date == null){
+            true_time += Rally.util.DateTime.getDifference(endDate,true_date,"second");
+        }
+        return true_time; 
+
     },
     _snapMeetsFilterCriteria: function(snap){
         var is_filtered = true;
@@ -191,7 +285,14 @@ Ext.define('CycleCalculator', {
         Ext.each(cycle_time_data, function(cdata){
             for (var i=0; i<date_buckets.length; i++){
                 if ((type == undefined || type == cdata.artifactType) && cdata.endDate >= date_buckets[i] && cdata.endDate < Rally.util.DateTime.add(date_buckets[i],granularity,1)){
-                    series_raw_data[i].push(cdata.days)
+                    var efficiency = 1;
+                    if (cdata.seconds > 0){
+                        var adjusted_cycle_time = (cdata.seconds - cdata.blockedTime - cdata.readyTime);  
+                        
+                        console.log('efficiency', adjusted_cycle_time, cdata.days );
+                        efficiency = (adjusted_cycle_time/cdata.seconds) * 100;
+                    }
+                    series_raw_data[i].push(efficiency);
                 }
             }
         });
@@ -202,8 +303,6 @@ Ext.define('CycleCalculator', {
             if (series_raw_data[i].length > 0){
                 series_data[i].y = Ext.Array.mean(series_raw_data[i]);
                 series_data[i].n = '(' + series_raw_data[i].length + ' Artifacts)';
-                console.log(date_buckets[i],series_data[i].y,series_raw_data[i]);
-
             } 
         }
 
