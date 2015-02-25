@@ -127,6 +127,10 @@ Ext.define('CycleCalculator', {
         var state_index = -1;
         var blocked_time = 0, unblocked_date = null, blocked_date = null;  
         var ready_time = 0, unready_date = null, ready_date = null; 
+        var seconds = null;
+        var days = null;
+        var include = false; 
+
         Ext.each(snaps, function(snap){
             
             if (snap[field]){
@@ -286,7 +290,7 @@ Ext.define('CycleCalculator', {
                         var adjusted_cycle_time = (cdata.seconds - cdata.blockedTime - cdata.readyTime);  
                         
                         console.log('efficiency', adjusted_cycle_time, cdata.days );
-                        efficiency = (adjusted_cycle_time/cdata.seconds) 
+                        efficiency = (adjusted_cycle_time/cdata.seconds) * 100;
                     }
                     series_raw_data[i].push(efficiency);
                 }
@@ -299,8 +303,6 @@ Ext.define('CycleCalculator', {
             if (series_raw_data[i].length > 0){
                 series_data[i].y = Ext.Array.mean(series_raw_data[i]);
                 series_data[i].n = '(' + series_raw_data[i].length + ' Artifacts)';
-                console.log(date_buckets[i],series_data[i].y,series_raw_data[i]);
-
             } 
         }
 

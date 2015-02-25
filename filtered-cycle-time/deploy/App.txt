@@ -3,11 +3,11 @@
 <head>
     <title>Filtered Cycle Time</title>
     <!--  (c) 2014 Rally Software Development Corp.  All Rights Reserved. -->
-    <!--  Build Date: Tue Feb 24 2015 07:38:31 GMT-0800 (PST) -->
+    <!--  Build Date: Wed Feb 25 2015 13:43:04 GMT-0800 (PST) -->
     
     <script type="text/javascript">
-        var APP_BUILD_DATE = "Tue Feb 24 2015 07:38:31 GMT-0800 (PST)";
-        var CHECKSUM = 54143833919;
+        var APP_BUILD_DATE = "Wed Feb 25 2015 13:43:04 GMT-0800 (PST)";
+        var CHECKSUM = 54293072022;
     </script>
     
     <script type="text/javascript" src="/apps/2.0rc3/sdk.js"></script>
@@ -265,6 +265,9 @@ Ext.define('CycleCalculator', {
         
         var previous_state_index = -1;
         var state_index = -1;
+        var seconds = null;
+        var days = null;
+        var include = false; 
         Ext.each(snaps, function(snap){
             
             if (snap[field]){

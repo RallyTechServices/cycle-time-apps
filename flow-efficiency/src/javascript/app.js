@@ -352,7 +352,7 @@ Ext.define('CustomApp', {
                 yAxis: [
                     {
                         title: {
-                            text: 'Flow Efficiency'
+                            text: '% Flow Efficiency'
                         },
                        // min: 0
                     }
@@ -360,7 +360,7 @@ Ext.define('CustomApp', {
                 plotOptions: {
                     series: {
                         dataLabels: {
-                            format: '{point.y:.2f}'
+                            format: '{point.y:.1f}%'
                         },
                         marker: {
                             enabled: false,
@@ -380,7 +380,7 @@ Ext.define('CustomApp', {
                     line: {
                         connectNulls: true,
                         tooltip: {
-                            pointFormat: '<span style="color:{series.color}">\u25CF</span> {series.name}: <b>{point.y:.2f}</b><br/>'
+                            pointFormat: '<span style="color:{series.color}">\u25CF</span> {series.name}: <b>{point.y:.1f}%</b><br/>'
                         }
                     }
                 },
@@ -389,7 +389,7 @@ Ext.define('CustomApp', {
         });        
     },
     _beforeChartRender: function(){
-        this.chartConfig.plotOptions.line.tooltip.pointFormat = '<span style="color:{series.color}">\u25CF</span> {series.name}: <b>{point.y:.2f} {point.n}</b><br/>';
+        this.chartConfig.plotOptions.line.tooltip.pointFormat = '<span style="color:{series.color}">\u25CF</span> {series.name}: <b>{point.y:.1f}% {point.n}</b><br/>';
     },
     _setFilters: function(filters){
         this.dataFilters = filters;  

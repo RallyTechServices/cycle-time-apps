@@ -3,10 +3,10 @@
 <head>
     <title>Flow Efficiency</title>
     <!--  (c) 2014 Rally Software Development Corp.  All Rights Reserved. -->
-    <!--  Build Date: Tue Feb 24 2015 07:48:55 GMT-0800 (PST) -->
+    <!--  Build Date: Wed Feb 25 2015 13:46:04 GMT-0800 (PST) -->
     
     <script type="text/javascript">
-        var APP_BUILD_DATE = "Tue Feb 24 2015 07:48:55 GMT-0800 (PST)";
+        var APP_BUILD_DATE = "Wed Feb 25 2015 13:46:04 GMT-0800 (PST)";
         var CHECKSUM = [%= checksum %];
     </script>
     
@@ -267,6 +267,10 @@ Ext.define('CycleCalculator', {
         var state_index = -1;
         var blocked_time = 0, unblocked_date = null, blocked_date = null;  
         var ready_time = 0, unready_date = null, ready_date = null; 
+        var seconds = null;
+        var days = null;
+        var include = false; 
+
         Ext.each(snaps, function(snap){
             
             if (snap[field]){
@@ -426,7 +430,7 @@ Ext.define('CycleCalculator', {
                         var adjusted_cycle_time = (cdata.seconds - cdata.blockedTime - cdata.readyTime);  
                         
                         console.log('efficiency', adjusted_cycle_time, cdata.days );
-                        efficiency = (adjusted_cycle_time/cdata.seconds) 
+                        efficiency = (adjusted_cycle_time/cdata.seconds) * 100;
                     }
                     series_raw_data[i].push(efficiency);
                 }
@@ -439,8 +443,6 @@ Ext.define('CycleCalculator', {
             if (series_raw_data[i].length > 0){
                 series_data[i].y = Ext.Array.mean(series_raw_data[i]);
                 series_data[i].n = '(' + series_raw_data[i].length + ' Artifacts)';
-                console.log(date_buckets[i],series_data[i].y,series_raw_data[i]);
-
             } 
         }
 
@@ -1373,7 +1375,7 @@ Ext.define('CustomApp', {
                 yAxis: [
                     {
                         title: {
-                            text: 'Flow Efficiency'
+                            text: '% Flow Efficiency'
                         },
                        // min: 0
                     }
@@ -1381,7 +1383,7 @@ Ext.define('CustomApp', {
                 plotOptions: {
                     series: {
                         dataLabels: {
-                            format: '{point.y:.2f}'
+                            format: '{point.y:.1f}%'
                         },
                         marker: {
                             enabled: false,
@@ -1401,7 +1403,7 @@ Ext.define('CustomApp', {
                     line: {
                         connectNulls: true,
                         tooltip: {
-                            pointFormat: '<span style="color:{series.color}">\u25CF</span> {series.name}: <b>{point.y:.2f}</b><br/>'
+                            pointFormat: '<span style="color:{series.color}">\u25CF</span> {series.name}: <b>{point.y:.1f}%</b><br/>'
                         }
                     }
                 },
@@ -1410,7 +1412,7 @@ Ext.define('CustomApp', {
         });        
     },
     _beforeChartRender: function(){
-        this.chartConfig.plotOptions.line.tooltip.pointFormat = '<span style="color:{series.color}">\u25CF</span> {series.name}: <b>{point.y:.2f} {point.n}</b><br/>';
+        this.chartConfig.plotOptions.line.tooltip.pointFormat = '<span style="color:{series.color}">\u25CF</span> {series.name}: <b>{point.y:.1f}% {point.n}</b><br/>';
     },
     _setFilters: function(filters){
         this.dataFilters = filters;  

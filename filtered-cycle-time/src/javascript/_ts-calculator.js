@@ -125,6 +125,9 @@ Ext.define('CycleCalculator', {
         
         var previous_state_index = -1;
         var state_index = -1;
+        var seconds = null;
+        var days = null;
+        var include = false; 
         Ext.each(snaps, function(snap){
             
             if (snap[field]){
