@@ -19,9 +19,8 @@ Ext.define('CustomApp', {
         days: 'Cycle Time (Days)',
         startDate: 'Start Date',
         endDate: 'End Date',
-        blockedTime: '% Cycle Time Blocked',
-        readyTime: '% Cycle Time Ready',
-        seconds: 'Cycle Time seconds'
+        pctBlocked: '% Cycle Time Blocked',
+        pctReady: '% Cycle Time Ready'
     },
     config: {
         defaultSettings: {

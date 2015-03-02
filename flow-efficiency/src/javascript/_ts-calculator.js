@@ -154,6 +154,11 @@ Ext.define('CycleCalculator', {
         var blocked_time = this._getTimeInBooleanState(snaps, 'Blocked', start_date, end_date);
         var ready_time = this._getTimeInBooleanState(snaps, 'Ready',start_date, end_date);
         
+        var pct_blocked = 0, pct_ready=0;
+        if (seconds > 0) {
+            pct_blocked = (blocked_time/seconds * 100);
+            pct_ready = (ready_time/seconds * 100);
+        }
         return {formattedId: snaps[0].FormattedID, 
                 seconds: seconds, 
                 days: days, 
@@ -162,7 +167,9 @@ Ext.define('CycleCalculator', {
                 artifactType: type, 
                 include: include,
                 blockedTime: blocked_time,
-                readyTime: ready_time};
+                readyTime: ready_time,
+                pctBlocked: pct_blocked,
+                pctReady: pct_ready};
     },
     _getTimeInBooleanState: function(snaps, stateField, startDate, endDate){
         var current, previous = null; 
@@ -294,10 +301,11 @@ Ext.define('CycleCalculator', {
         Ext.each(cycle_time_data, function(cdata){
             for (var i=0; i<date_buckets.length; i++){
                 if (cdata.endDate >= date_buckets[i] && cdata.endDate < Rally.util.DateTime.add(date_buckets[i],granularity,1)){
+                    console.log(cdata)
                     if (cdata.seconds > 0){
-                        cycle_time[i].push(cdata.seconds);
-                        blockers[i].push(cdata.blockedTime/cdata.seconds || 0);
-                        ready[i].push(cdata.readyTime/cdata.seconds || 0);
+                        cycle_time[i].push(cdata.seconds || 0);
+                        blockers[i].push(cdata.pctBlocked || 0);
+                        ready[i].push(cdata.pctReady || 0);
                     }
                 }
             }
@@ -315,9 +323,9 @@ Ext.define('CycleCalculator', {
                 num_artifacts = cycle_time[i].length;  
                 var total_cycle_time = Ext.Array.sum(cycle_time[i]);
                 if (total_cycle_time > 0){
-                    pct_blocked = Ext.Array.mean(blockers[i]) * 100;
+                    pct_blocked = Ext.Array.mean(blockers[i]) ;
                     pct_blocked = pct_blocked.toFixed(1);
-                    pct_ready = Ext.Array.mean(ready[i]) * 100;
+                    pct_ready = Ext.Array.mean(ready[i]);
                     pct_ready = pct_ready.toFixed(1);
                 }
             } 
