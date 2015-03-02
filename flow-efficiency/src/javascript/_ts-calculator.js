@@ -39,7 +39,7 @@ Ext.define('CycleCalculator', {
          
          
          var series = [];
-         console.log(this.color);
+
          series.push(this._getSeries(cycle_time_data, date_buckets, this.granularity,undefined,'black'));  
          var hr_series = this._getSeries(cycle_time_data, date_buckets, this.granularity,'HierarchicalRequirement','');
          series.push(hr_series);  
@@ -59,14 +59,14 @@ Ext.define('CycleCalculator', {
              cycleTimeDataExport.push(ctd);
          });
          this.cycleTimeDataExport = cycleTimeDataExport; 
-
+         
+         this.summaryData = this._getSummary(cycle_time_data, date_buckets, this.granularity, categories);
          
          return {
             series: series,
             categories: categories
         }
     },
-
     _getTrendline: function(series, color){
         /**
          * Regression Equation(y) = a + bx  
@@ -149,51 +149,10 @@ Ext.define('CycleCalculator', {
                 }
                 include = this._snapMeetsFilterCriteria(snap);
             }
-            
-            
         }, this);
         
         var blocked_time = this._getTimeInBooleanState(snaps, 'Blocked', start_date, end_date);
         var ready_time = this._getTimeInBooleanState(snaps, 'Ready',start_date, end_date);
-//            console.log('blocked', snap.Blocked, snap["_PreviousValues.Blocked"]);
-//            if ((snap.Blocked != snap["_PreviousValues.Blocked"])){
-//                if (snap['Blocked'] === true){
-//                    blocked_date = Rally.util.DateTime.fromIsoString(snap._ValidFrom);
-//                    console.log('set blocked _time',blocked_date);
-//                } else {
-//                    if (snap.Blocked === false && snap["_PreviousValues.Blocked"] === true){
-//                        unblocked_date = Rally.util.DateTime.fromIsoString(snap._ValidFrom);
-//                        console.log('set unblocked time', unblocked_date);
-//                        if (blocked_date && unblocked_date){
-//                            blocked_time += Rally.util.DateTime.getDifference(unblocked_date, blocked_date,"second");
-//                            console.log('add blocked time', blocked_date, unblocked_date, blocked_time);
-//                            blocked_date = null;
-//                            unblocked_date = null; 
-//                        }
-//                    }
-//                }
-//            }
-//            
-//            if ((snap.Ready != snap["_PreviousValues.Ready"])){
-//                if (snap.Ready === true){
-//                    ready_date = Rally.util.DateTime.fromIsoString(snap._ValidFrom);
-//                    console.log('set ready _time',ready_date);         
-//                } else {
-//                    if (snap.Ready === false && snap["_PreviousValues.Ready"] === true){
-//                        unready_date = Rally.util.DateTime.fromIsoString(snap._ValidFrom);
-//                        console.log('set unready time', unready_date);
-//                        if (ready_date && unready_date){
-//                            ready_time += Rally.util.DateTime.getDifference(unready_date, ready_date,"second");
-//                            console.log('add ready time', ready_date, unready_date, ready_time);
-//                            ready_date = null;
-//                            unready_date = null; 
-//                        }
-//                    }
-//                }
-//                
-//            }
-            
-       // }, this);
         
         return {formattedId: snaps[0].FormattedID, 
                 seconds: seconds, 
@@ -288,8 +247,6 @@ Ext.define('CycleCalculator', {
                     var efficiency = 1;
                     if (cdata.seconds > 0){
                         var adjusted_cycle_time = (cdata.seconds - cdata.blockedTime - cdata.readyTime);  
-                        
-                        console.log('efficiency', adjusted_cycle_time, cdata.days );
                         efficiency = (adjusted_cycle_time/cdata.seconds) * 100;
                     }
                     series_raw_data[i].push(efficiency);
@@ -321,5 +278,52 @@ Ext.define('CycleCalculator', {
             }
         }
         return Ext.String.format(type_text);   
+    },
+    _getSummary: function(cycle_time_data, date_buckets, granularity, categories){
+        console.log('_getSummary');
+        var cycle_time = [];
+        var blockers = [];
+        var ready = [];
+        
+        for (var i=0; i<date_buckets.length; i++){
+            cycle_time[i] = [];
+            blockers[i] = [];
+            ready[i] = [];
+        }
+        
+        Ext.each(cycle_time_data, function(cdata){
+            for (var i=0; i<date_buckets.length; i++){
+                if (cdata.endDate >= date_buckets[i] && cdata.endDate < Rally.util.DateTime.add(date_buckets[i],granularity,1)){
+                    if (cdata.seconds > 0){
+                        cycle_time[i].push(cdata.seconds);
+                        blockers[i].push(cdata.blockedTime/cdata.seconds || 0);
+                        ready[i].push(cdata.readyTime/cdata.seconds || 0);
+                    }
+                }
+            }
+        });
+
+        summaryData = [];
+        for (var i=0; i<date_buckets.length; i++){
+            var cycle_time_avg = 0, 
+                 pct_blocked = 0, 
+                 pct_ready = 0,
+                 num_artifacts = 0; 
+            
+            if (cycle_time[i].length > 0){
+                cycle_time_avg = (Ext.Array.mean(cycle_time[i])/86400).toFixed(); //convert to days
+                num_artifacts = cycle_time[i].length;  
+                var total_cycle_time = Ext.Array.sum(cycle_time[i]);
+                if (total_cycle_time > 0){
+                    pct_blocked = Ext.Array.mean(blockers[i]) * 100;
+                    pct_blocked = pct_blocked.toFixed(1);
+                    pct_ready = Ext.Array.mean(ready[i]) * 100;
+                    pct_ready = pct_ready.toFixed(1);
+                }
+            } 
+            summaryData.push({date: categories[i], avgCycleTime: cycle_time_avg, pctBlocked: pct_blocked, pctReady: pct_ready, numArtifacts: num_artifacts})
+        }
+
+        return summaryData;
     },
 });
