@@ -281,6 +281,7 @@ Ext.define('CustomApp', {
         this.loadSnapshots([this._getStoreConfig('Defect'),this._getStoreConfig('HierarchicalRequirement')]).then({
             scope: this,
             success: function(snapshots){
+                this._cleanUI(['#rally-chart','#rally-grid']);
                 var calc = Ext.create('CycleCalculator', {
                     cycleField: field,
                     cycleStartValue: start_state,
@@ -292,9 +293,11 @@ Ext.define('CustomApp', {
                     dateFormat: granularity_rec.get('dateFormat'),
                     dataFilters: filters            
                 });
+                
                 this.setLoading(false);
                 var chart_data = calc.runCalculation(snapshots);
                 this._drawChart(chart_data);
+                this._buildGrid(calc.summaryData);
                 this.exportData = calc.cycleTimeDataExport;
             }
         });
@@ -306,6 +309,14 @@ Ext.define('CustomApp', {
             Rally.technicalservices.FileUtilities.saveTextAsFile(text, 'flow-efficiency.csv');
         }
     },
+    _cleanUI: function(componentIds){
+
+        Ext.each(componentIds, function(c){
+            if (this.down(c)){
+                this.down(c).destroy();
+            }
+        }, this);
+    },
     _drawChart: function(chart_data){
         this.logger.log('_drawChart');
         
@@ -313,6 +324,7 @@ Ext.define('CustomApp', {
         var chart = this.down('#rally-chart') 
         if (chart){
             this.down('#rally-chart').destroy(); 
+            this.down('#rally-grid').destroy();
         }
 
         var granularity_rec = this.down('#cb-granularity').getRecord();
@@ -354,7 +366,8 @@ Ext.define('CustomApp', {
                         title: {
                             text: '% Flow Efficiency'
                         },
-                       // min: 0
+                        //min: 0,
+                        max: 100
                     }
                 ],
                 plotOptions: {
@@ -384,10 +397,37 @@ Ext.define('CustomApp', {
                         }
                     }
                 },
-
             }
         });        
     },
+    _buildGrid: function(summaryData){
+        this.logger.log('_buildGrid',summaryData);
+        
+        var store = Ext.create('Rally.data.custom.Store', {
+            data: summaryData
+        });
+        
+        this.down('#display_box').add({
+            xtype: 'rallygrid',
+            store: store,
+            columnCfgs: [{
+                text: 'Date',
+                dataIndex: 'date'
+            },{
+                text: '% Blocked',
+                dataIndex: 'pctBlocked'
+            },{
+                text: '% Ready',
+                dataIndex: 'pctReady'
+            },{
+                text: 'Avg Cycle Time',
+                dataIndex: 'avgCycleTime'
+            },{
+                text: 'Total Artifacts',
+                dataIndex: 'numArtifacts'
+            }]
+        });
+    }, 
     _beforeChartRender: function(){
         this.chartConfig.plotOptions.line.tooltip.pointFormat = '<span style="color:{series.color}">\u25CF</span> {series.name}: <b>{point.y:.1f}% {point.n}</b><br/>';
     },
@@ -482,10 +522,11 @@ Ext.define('CustomApp', {
                 "_TypeHierarchy": type
             };
         
+        var project = this.getContext().getProject().ObjectID; 
         if (this.getContext().getProjectScopeDown()){
-            find["_ProjectHierarchy"] = {$in: [this.getContext().getProject().ObjectID]};
+            find["_ProjectHierarchy"] = {$in: [project]};
         } else {
-            find["Project"]= this.getContext().getProject().ObjectID;
+            find["Project"]= project;
         }
         var store_config ={
              find: find,
