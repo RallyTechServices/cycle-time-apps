@@ -109,15 +109,17 @@ Ext.define('CustomApp', {
          Deft.Promise.all(promises).then({
              scope: this,
              success: function(fields){
+                 var scheduleStateField = null; 
                  fields = _.flatten(fields);
                  this.logger.log('_fetchFields success', fields);
                  var field_names = [];
                  Ext.each(fields, function(f){
                      if (f.hidden === false && f.attributeDefinition){
                          var attr_def = f.attributeDefinition;
-                         if (!Ext.Array.contains(field_names, attr_def.ElementName)){
+                        if (!Ext.Array.contains(field_names, attr_def.ElementName)){
                              if (Ext.Array.contains(cycleStateFields,attr_def.ElementName)){
                                  valid_fields.push(f);
+
                              }
                              if (Ext.Array.contains(additional_filterable_fields, attr_def.ElementName) || 
                                              (attr_def.Constrained && Ext.Array.contains(allowed_attribute_types, attr_def.AttributeType) && attr_def.ReadOnly == false)){
@@ -127,6 +129,7 @@ Ext.define('CustomApp', {
                          }
                      }
                  });
+                 
                  this.filterFields = _.uniq(filter_fields);  
                  this.cycleFields = _.uniq(valid_fields); 
                  deferred.resolve();
@@ -410,6 +413,7 @@ Ext.define('CustomApp', {
         this.down('#display_box').add({
             xtype: 'rallygrid',
             store: store,
+            itemId: 'rally-grid',
             columnCfgs: [{
                 text: 'Date',
                 dataIndex: 'date'
@@ -422,6 +426,9 @@ Ext.define('CustomApp', {
             },{
                 text: 'Avg Cycle Time',
                 dataIndex: 'avgCycleTime'
+            },{
+                text: 'Total Cycle Time',
+                dataIndex: 'totalCycleTime'
             },{
                 text: 'Total Artifacts',
                 dataIndex: 'numArtifacts'

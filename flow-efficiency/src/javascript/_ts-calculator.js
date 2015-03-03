@@ -23,11 +23,9 @@ Ext.define('CycleCalculator', {
         this.mergeConfig(config);
     },
     runCalculation: function(snapshots) {   
-         console.log(snapshots);
          var snaps_by_oid = Rally.technicalservices.Toolbox.aggregateSnapsByOid(snapshots);
-         console.log('snapsbyoid', Ext.Object.getKeys(snaps_by_oid).length);
          var date_buckets = Rally.technicalservices.Toolbox.getDateBuckets(this.startDate, this.endDate, this.granularity);
-         console.log('date_buckets',date_buckets);
+
          var cycle_time_data = [];
          
          Ext.Object.each(snaps_by_oid, function(oid, snaps){
@@ -213,7 +211,7 @@ Ext.define('CycleCalculator', {
     },
     _snapMeetsFilterCriteria: function(snap){
         var is_filtered = true;
-        this.logger.log('_snapMeetsFilterCriteria', snap);
+     //   this.logger.log('_snapMeetsFilterCriteria', snap);
         Ext.each(this.dataFilters, function(filter){
             var str_format = "{0} {1} {2}";
             if (isNaN(snap[filter.property]) && isNaN(filter.value)){
@@ -227,11 +225,11 @@ Ext.define('CycleCalculator', {
             var val = filter.value || '';
             if (val.length == 0 || snap[filter.property].length == 0){
                 is_filtered = (val.length == 0 && snap[filter.property].length == 0);  
-                this.logger.log('_snapMeetsFilterCriteria filter property or value is blank', filter.property, snap[filter.property], is_filtered);
+               // this.logger.log('_snapMeetsFilterCriteria filter property or value is blank', filter.property, snap[filter.property], is_filtered);
             } else {
                 var str_eval = Ext.String.format(str_format, snap[filter.property], operator, val);
                 is_filtered = eval(str_eval);
-                this.logger.log('_snapMeetsFilterCriteria eval', filter, str_eval,is_filtered);
+               // this.logger.log('_snapMeetsFilterCriteria eval', filter, str_eval,is_filtered);
             }
             return is_filtered;  //if filtered is false, then we want to stop looping.  
         },this);
@@ -287,25 +285,27 @@ Ext.define('CycleCalculator', {
         return Ext.String.format(type_text);   
     },
     _getSummary: function(cycle_time_data, date_buckets, granularity, categories){
-        console.log('_getSummary');
+
         var cycle_time = [];
         var blockers = [];
         var ready = [];
+        var cycle_time_in_days = [];  
         
         for (var i=0; i<date_buckets.length; i++){
             cycle_time[i] = [];
             blockers[i] = [];
             ready[i] = [];
+            cycle_time_in_days[i] = [];
         }
         
         Ext.each(cycle_time_data, function(cdata){
             for (var i=0; i<date_buckets.length; i++){
                 if (cdata.endDate >= date_buckets[i] && cdata.endDate < Rally.util.DateTime.add(date_buckets[i],granularity,1)){
-                    console.log(cdata)
                     if (cdata.seconds > 0){
                         cycle_time[i].push(cdata.seconds || 0);
                         blockers[i].push(cdata.pctBlocked || 0);
                         ready[i].push(cdata.pctReady || 0);
+                        cycle_time_in_days[i].push(cdata.days);
                     }
                 }
             }
@@ -316,20 +316,21 @@ Ext.define('CycleCalculator', {
             var cycle_time_avg = 0, 
                  pct_blocked = 0, 
                  pct_ready = 0,
-                 num_artifacts = 0; 
-            
+                 num_artifacts = 0,  
+                total_cycle_time = 0;
             if (cycle_time[i].length > 0){
                 cycle_time_avg = (Ext.Array.mean(cycle_time[i])/86400).toFixed(); //convert to days
                 num_artifacts = cycle_time[i].length;  
-                var total_cycle_time = Ext.Array.sum(cycle_time[i]);
-                if (total_cycle_time > 0){
+                total_cycle_time = Ext.Array.sum(cycle_time[i]);
+                if (Ext.Array.sum(cycle_time[i]) > 0){
                     pct_blocked = Ext.Array.mean(blockers[i]) ;
                     pct_blocked = pct_blocked.toFixed(1);
                     pct_ready = Ext.Array.mean(ready[i]);
                     pct_ready = pct_ready.toFixed(1);
                 }
             } 
-            summaryData.push({date: categories[i], avgCycleTime: cycle_time_avg, pctBlocked: pct_blocked, pctReady: pct_ready, numArtifacts: num_artifacts})
+          //  total_cycle_time = (total_cycle_time/86400).toFixed(1); 
+            summaryData.push({date: categories[i], avgCycleTime: cycle_time_avg, pctBlocked: pct_blocked, pctReady: pct_ready, numArtifacts: num_artifacts, totalCycleTime: Ext.Array.sum(cycle_time_in_days[i])})
         }
 
         return summaryData;

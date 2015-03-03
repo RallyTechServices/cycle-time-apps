@@ -8,3 +8,22 @@ Ext.override(Rally.ui.picker.FieldPicker, {
         return false;
     }
 });
+Ext.override(Rally.domain.WsapiField,{
+getAllowedValueStore: function() {
+    var allowedValues = this._getAllowedValues();
+    if (allowedValues) {
+        if(!this._allowedValueStore) {
+            this._allowedValueStore = Ext.create('Rally.data.wsapi.collection.Store', {
+                fetch: true,
+                model: Ext.identityFn('AllowedAttributeValue'),
+                proxy: Rally.data.WsapiModelFactory.buildProxy(this.getAllowedValuesRef(), this.name),
+                initialCount: allowedValues.length || allowedValues.Count,
+                cacheResults: true
+            });
+        }
+        return this._allowedValueStore;
+    }
+    return null;
+}
+});
+
