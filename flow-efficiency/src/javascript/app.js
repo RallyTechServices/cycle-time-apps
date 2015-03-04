@@ -14,6 +14,12 @@ Ext.define('CustomApp', {
             tpl:'<div class="ts-filter"><b>Applied Filters:</b><br><tpl for=".">{displayProperty} {operator} {value}<br></tpl></div>'},
         {xtype:'tsinfolink'}
     ],
+    scheduleStateMapping: {
+        "21934055950": "Accepted",
+        "21934055944": "Defined" ,
+        "21934055946": "In-Progress" ,
+        "21934055948": "Completed"
+    },
     exportHash: {
         formattedId: 'Formatted ID',
         days: 'Cycle Time (Days)',
@@ -277,6 +283,10 @@ Ext.define('CustomApp', {
         var start_date = Rally.util.DateTime.add(new Date(),"month",date_range);
         var start_state = this._getStartState();
         var filters = this.dataFilters;  
+        filters.push({
+            property: 'Children',
+            value: ""
+        });
         
         this.logger.log('_createChart', field, start_state, this._getEndState(), granularity, start_date, end_date);
 
@@ -475,11 +485,13 @@ Ext.define('CustomApp', {
             success: function(snapshots){
                 this.logger.log('loadSnapshots success', snapshots);
                 var hydrated_snaps = [];  
+                var scheduleStateMapping = this.scheduleStateMapping;  
                 for(var i=0; i< snapshots.length; i++){
                     var type = storeConfigs[i]["find"]["_TypeHierarchy"];
                     //Now we will hydrate the type ourselves
                     hydrated_snaps.push(_.map(snapshots[i],function(snap){
                         var obj = snap.getData();
+                        obj["ScheduleState"] = scheduleStateMapping[snap.get('ScheduleState').toString()]
                         obj["_TypeHierarchy"] = [type];
                         return obj;
                     }));
@@ -525,7 +537,7 @@ Ext.define('CustomApp', {
         var fetch = this._getFetchFields();
         this.logger.log('_getStoreConfig', type, field, fetch);
         var find = {
-                "Children": null,
+             //   "Children": null,
                 "_TypeHierarchy": type
             };
         
@@ -538,7 +550,7 @@ Ext.define('CustomApp', {
         var store_config ={
              find: find,
              fetch: fetch,
-             hydrate: ['ScheduleState'],
+             //hydrate: ['ScheduleState'],
              //compress: true,
              sort: {
                  _ValidFrom: 1
@@ -550,7 +562,7 @@ Ext.define('CustomApp', {
     },
     _getFetchFields: function(){
         var field = this.down('#cb-field').getValue();
-        var fetch_fields = ['ObjectID',field,'_TypeHierarchy','_SnapshotNumber','ScheduleState','FormattedID','Blocked','Ready','_ValidTo','_ValidFrom'];
+        var fetch_fields = ['ObjectID',field,'_TypeHierarchy','_SnapshotNumber','ScheduleState','FormattedID','Blocked','Ready','_ValidTo','_ValidFrom','Children'];
         
         var filter_fields = [];  
         Ext.each(this.dataFilters, function(f){
