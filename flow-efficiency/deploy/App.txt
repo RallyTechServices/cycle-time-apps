@@ -3,11 +3,11 @@
 <head>
     <title>Flow Efficiency</title>
     <!--  (c) 2014 Rally Software Development Corp.  All Rights Reserved. -->
-    <!--  Build Date: Wed Mar 04 2015 08:15:47 GMT-0700 (MST) -->
+    <!--  Build Date: Wed Mar 04 2015 10:30:15 GMT-0700 (MST) -->
     
     <script type="text/javascript">
-        var APP_BUILD_DATE = "Wed Mar 04 2015 08:15:47 GMT-0700 (MST)";
-        var CHECKSUM = 68381911026;
+        var APP_BUILD_DATE = "Wed Mar 04 2015 10:30:15 GMT-0700 (MST)";
+        var CHECKSUM = 68228230268;
     </script>
     
     <script type="text/javascript" src="/apps/2.0rc3/sdk.js"></script>
@@ -1606,8 +1606,6 @@ Ext.define('CustomApp', {
         var store_config ={
              find: find,
              fetch: fetch,
-             //hydrate: ['ScheduleState'],
-             //compress: true,
              sort: {
                  _ValidFrom: 1
              },

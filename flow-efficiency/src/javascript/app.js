@@ -550,8 +550,6 @@ Ext.define('CustomApp', {
         var store_config ={
              find: find,
              fetch: fetch,
-             //hydrate: ['ScheduleState'],
-             //compress: true,
              sort: {
                  _ValidFrom: 1
              },
