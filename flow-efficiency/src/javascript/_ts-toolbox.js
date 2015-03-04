@@ -47,7 +47,6 @@ Ext.define('Rally.technicalservices.Toolbox',{
                 snaps_by_oid[oid] = [];
             }
             snaps_by_oid[oid].push(snap.getData());
-            
         });
         return snaps_by_oid;
     },
