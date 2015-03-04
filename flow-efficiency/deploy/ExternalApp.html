@@ -3,10 +3,10 @@
 <head>
     <title>Flow Efficiency</title>
     <!--  (c) 2014 Rally Software Development Corp.  All Rights Reserved. -->
-    <!--  Build Date: Wed Mar 04 2015 10:30:15 GMT-0700 (MST) -->
+    <!--  Build Date: Wed Mar 04 2015 14:26:06 GMT-0700 (MST) -->
     
     <script type="text/javascript">
-        var APP_BUILD_DATE = "Wed Mar 04 2015 10:30:15 GMT-0700 (MST)";
+        var APP_BUILD_DATE = "Wed Mar 04 2015 14:26:06 GMT-0700 (MST)";
         var CHECKSUM = [%= checksum %];
     </script>
     
@@ -958,25 +958,64 @@ Ext.override(Rally.ui.picker.FieldPicker, {
         return false;
     }
 });
-Ext.override(Rally.domain.WsapiField,{
-getAllowedValueStore: function() {
-    var allowedValues = this._getAllowedValues();
-    if (allowedValues) {
-        if(!this._allowedValueStore) {
-            this._allowedValueStore = Ext.create('Rally.data.wsapi.collection.Store', {
-                fetch: true,
-                model: Ext.identityFn('AllowedAttributeValue'),
-                proxy: Rally.data.WsapiModelFactory.buildProxy(this.getAllowedValuesRef(), this.name),
-                initialCount: allowedValues.length || allowedValues.Count,
-                cacheResults: true
-            });
-        }
-        return this._allowedValueStore;
-    }
-    return null;
-}
-});
 
+Ext.override(Ext.data.proxy.Server, {
+    timeout : 60000,
+    processResponse: function(success, operation, request, response, callback, scope) {
+        var me = this,
+            reader,
+            result;
+
+        if (success === true) {
+            reader = me.getReader();
+            reader.applyDefaults = operation.action === 'read';
+            result = reader.read(me.extractResponseData(response));
+
+            if (result.success !== false) {
+                
+                Ext.apply(operation, {
+                    response: response,
+                    resultSet: result
+                });
+
+                operation.commitRecords(result.records);
+                operation.setCompleted();
+                operation.setSuccessful();
+            } else {
+                operation.setException(result.message);
+                me.fireEvent('exception', this, response, operation);
+            }
+        } else {
+            if (response) {
+                me.setException(operation, response);
+            }
+            me.fireEvent('exception', this, response, operation);
+        }
+
+        
+        if (typeof callback == 'function') {
+            callback.call(scope || me, operation);
+        }
+
+        me.afterRequest(request, success);
+    },
+
+    
+    setException: function(operation, response) {
+        operation.setException({
+            status: response.status ,
+            statusText: response.statusText
+        });
+    },
+
+    
+    extractResponseData: Ext.identityFn,
+
+    
+    applyEncoding: function(value) {
+        return Ext.encode(value);
+    },
+});
 
 Ext.define('Rally.technicalservices.Toolbox',{
     singleton: true,
@@ -1062,7 +1101,7 @@ Ext.define('CustomApp', {
         {xtype:'container',itemId:'settings_box'},
         {xtype:'container',itemId:'selector_box', layout: {type: 'hbox'}},
         {xtype:'container',itemId:'button_box', layout: {type: 'hbox'}},
-        {xtype:'container',itemId:'display_box'},
+        {xtype:'container',itemId:'display_box', padding: 25,  tpl: '<tpl><b>{msg}</b></tpl>'},
         {xtype:'container',
             itemId:'filter_box',
             padding: 10, 
@@ -1073,7 +1112,7 @@ Ext.define('CustomApp', {
     scheduleStateMapping: {
         "21934055950": "Accepted",
         "21934055944": "Defined" ,
-        "21934055946": "In-Progress" ,
+        "21934055946": "In-Progress",
         "21934055948": "Completed"
     },
     exportHash: {
@@ -1347,10 +1386,11 @@ Ext.define('CustomApp', {
         this.logger.log('_createChart', field, start_state, this._getEndState(), granularity, start_date, end_date);
 
         this.setLoading('Fetching data...');
+        this._cleanUI(['#rally-chart','#rally-grid']);
+
         this.loadSnapshots([this._getStoreConfig('Defect'),this._getStoreConfig('HierarchicalRequirement')]).then({
             scope: this,
             success: function(snapshots){
-                this._cleanUI(['#rally-chart','#rally-grid']);
                 var calc = Ext.create('CycleCalculator', {
                     cycleField: field,
                     cycleStartValue: start_state,
@@ -1368,6 +1408,11 @@ Ext.define('CustomApp', {
                 this._drawChart(chart_data);
                 this._buildGrid(calc.summaryData);
                 this.exportData = calc.cycleTimeDataExport;
+            },
+            failure: function(msg){
+                var error_msg = msg + '.  Please retry your request.';
+                this._cleanUI(['#rally-chart','#rally-grid'], error_msg);
+                this.setLoading(false);
             }
         });
     },
@@ -1378,13 +1423,18 @@ Ext.define('CustomApp', {
             Rally.technicalservices.FileUtilities.saveTextAsFile(text, 'flow-efficiency.csv');
         }
     },
-    _cleanUI: function(componentIds){
+    _cleanUI: function(componentIds, msg){
 
         Ext.each(componentIds, function(c){
             if (this.down(c)){
                 this.down(c).destroy();
             }
         }, this);
+        
+        if (msg == undefined){
+            msg = '';
+        }
+        this.down('#display_box').update({msg: msg});
     },
     _drawChart: function(chart_data){
         this.logger.log('_drawChart');
@@ -1555,6 +1605,10 @@ Ext.define('CustomApp', {
                 }
                 hydrated_snaps = _.flatten(hydrated_snaps);
                 deferred.resolve(hydrated_snaps);
+            },
+            failure: function(type){
+                var msg = "Error fetching data for " + type;
+                deferred.reject(msg);
             }
         });
         return deferred; 
@@ -1563,7 +1617,7 @@ Ext.define('CustomApp', {
         var deferred = Ext.create('Deft.Deferred');
         
         this.logger.log('_loadStore', storeConfig); 
-        
+        var start = Date.now();
         storeConfig = _.extend(storeConfig, {
             limit: 'Infinity',
             removeUnauthorizedSnapshots: true,
@@ -1574,11 +1628,12 @@ Ext.define('CustomApp', {
             listeners: {
                 scope: this, 
                 load: function(store,records,success){
-                    this.logger.log('_loadStore load returned',records.length, success, records);
+                    this.logger.log('_loadStore load returned', Date.now()-start, records.length, success, records);
                     if (success) {
                         deferred.resolve(records);
                     } else {
-                        deferred.resolve([]);
+                        this.logger.log('_loadStore failed for config',Date.now()-start, storeConfig);
+                        deferred.reject(storeConfig["find"]["_TypeHierarchy"]);
                     }
                 }
             }
@@ -1593,7 +1648,6 @@ Ext.define('CustomApp', {
         var fetch = this._getFetchFields();
         this.logger.log('_getStoreConfig', type, field, fetch);
         var find = {
-             //   "Children": null,
                 "_TypeHierarchy": type
             };
         
@@ -1611,6 +1665,9 @@ Ext.define('CustomApp', {
              },
              context: this.getContext().getDataContext(),
         }
+//        if (type == 'HierarchicalRequirement'){
+//            store_config["context"] = {workspace: 'bldkjs/dakfjfa'};
+//        }
         this.logger.log('_getStoreConfig', store_config);
         return store_config;
     },

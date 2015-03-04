@@ -6,7 +6,7 @@ Ext.define('CustomApp', {
         {xtype:'container',itemId:'settings_box'},
         {xtype:'container',itemId:'selector_box', layout: {type: 'hbox'}},
         {xtype:'container',itemId:'button_box', layout: {type: 'hbox'}},
-        {xtype:'container',itemId:'display_box'},
+        {xtype:'container',itemId:'display_box', padding: 25,  tpl: '<tpl><b>{msg}</b></tpl>'},
         {xtype:'container',
             itemId:'filter_box',
             padding: 10, 
@@ -17,7 +17,7 @@ Ext.define('CustomApp', {
     scheduleStateMapping: {
         "21934055950": "Accepted",
         "21934055944": "Defined" ,
-        "21934055946": "In-Progress" ,
+        "21934055946": "In-Progress",
         "21934055948": "Completed"
     },
     exportHash: {
@@ -291,10 +291,11 @@ Ext.define('CustomApp', {
         this.logger.log('_createChart', field, start_state, this._getEndState(), granularity, start_date, end_date);
 
         this.setLoading('Fetching data...');
+        this._cleanUI(['#rally-chart','#rally-grid']);
+
         this.loadSnapshots([this._getStoreConfig('Defect'),this._getStoreConfig('HierarchicalRequirement')]).then({
             scope: this,
             success: function(snapshots){
-                this._cleanUI(['#rally-chart','#rally-grid']);
                 var calc = Ext.create('CycleCalculator', {
                     cycleField: field,
                     cycleStartValue: start_state,
@@ -312,6 +313,11 @@ Ext.define('CustomApp', {
                 this._drawChart(chart_data);
                 this._buildGrid(calc.summaryData);
                 this.exportData = calc.cycleTimeDataExport;
+            },
+            failure: function(msg){
+                var error_msg = msg + '.  Please retry your request.';
+                this._cleanUI(['#rally-chart','#rally-grid'], error_msg);
+                this.setLoading(false);
             }
         });
     },
@@ -322,13 +328,18 @@ Ext.define('CustomApp', {
             Rally.technicalservices.FileUtilities.saveTextAsFile(text, 'flow-efficiency.csv');
         }
     },
-    _cleanUI: function(componentIds){
+    _cleanUI: function(componentIds, msg){
 
         Ext.each(componentIds, function(c){
             if (this.down(c)){
                 this.down(c).destroy();
             }
         }, this);
+        
+        if (msg == undefined){
+            msg = '';
+        }
+        this.down('#display_box').update({msg: msg});
     },
     _drawChart: function(chart_data){
         this.logger.log('_drawChart');
@@ -499,6 +510,10 @@ Ext.define('CustomApp', {
                 }
                 hydrated_snaps = _.flatten(hydrated_snaps);
                 deferred.resolve(hydrated_snaps);
+            },
+            failure: function(type){
+                var msg = "Error fetching data for " + type;
+                deferred.reject(msg);
             }
         });
         return deferred; 
@@ -507,7 +522,7 @@ Ext.define('CustomApp', {
         var deferred = Ext.create('Deft.Deferred');
         
         this.logger.log('_loadStore', storeConfig); 
-        
+        var start = Date.now();
         storeConfig = _.extend(storeConfig, {
             limit: 'Infinity',
             removeUnauthorizedSnapshots: true,
@@ -518,11 +533,12 @@ Ext.define('CustomApp', {
             listeners: {
                 scope: this, 
                 load: function(store,records,success){
-                    this.logger.log('_loadStore load returned',records.length, success, records);
+                    this.logger.log('_loadStore load returned', Date.now()-start, records.length, success, records);
                     if (success) {
                         deferred.resolve(records);
                     } else {
-                        deferred.resolve([]);
+                        this.logger.log('_loadStore failed for config',Date.now()-start, storeConfig);
+                        deferred.reject(storeConfig["find"]["_TypeHierarchy"]);
                     }
                 }
             }
@@ -537,7 +553,6 @@ Ext.define('CustomApp', {
         var fetch = this._getFetchFields();
         this.logger.log('_getStoreConfig', type, field, fetch);
         var find = {
-             //   "Children": null,
                 "_TypeHierarchy": type
             };
         
@@ -555,6 +570,9 @@ Ext.define('CustomApp', {
              },
              context: this.getContext().getDataContext(),
         }
+//        if (type == 'HierarchicalRequirement'){
+//            store_config["context"] = {workspace: 'bldkjs/dakfjfa'};
+//        }
         this.logger.log('_getStoreConfig', store_config);
         return store_config;
     },

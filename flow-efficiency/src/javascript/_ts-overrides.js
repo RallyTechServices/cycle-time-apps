@@ -8,22 +8,61 @@ Ext.override(Rally.ui.picker.FieldPicker, {
         return false;
     }
 });
-Ext.override(Rally.domain.WsapiField,{
-getAllowedValueStore: function() {
-    var allowedValues = this._getAllowedValues();
-    if (allowedValues) {
-        if(!this._allowedValueStore) {
-            this._allowedValueStore = Ext.create('Rally.data.wsapi.collection.Store', {
-                fetch: true,
-                model: Ext.identityFn('AllowedAttributeValue'),
-                proxy: Rally.data.WsapiModelFactory.buildProxy(this.getAllowedValuesRef(), this.name),
-                initialCount: allowedValues.length || allowedValues.Count,
-                cacheResults: true
-            });
-        }
-        return this._allowedValueStore;
-    }
-    return null;
-}
-});
 
+Ext.override(Ext.data.proxy.Server, {
+    timeout : 60000,
+    processResponse: function(success, operation, request, response, callback, scope) {
+        var me = this,
+            reader,
+            result;
+
+        if (success === true) {
+            reader = me.getReader();
+            reader.applyDefaults = operation.action === 'read';
+            result = reader.read(me.extractResponseData(response));
+
+            if (result.success !== false) {
+                
+                Ext.apply(operation, {
+                    response: response,
+                    resultSet: result
+                });
+
+                operation.commitRecords(result.records);
+                operation.setCompleted();
+                operation.setSuccessful();
+            } else {
+                operation.setException(result.message);
+                me.fireEvent('exception', this, response, operation);
+            }
+        } else {
+            if (response) {
+                me.setException(operation, response);
+            }
+            me.fireEvent('exception', this, response, operation);
+        }
+
+        
+        if (typeof callback == 'function') {
+            callback.call(scope || me, operation);
+        }
+
+        me.afterRequest(request, success);
+    },
+
+    
+    setException: function(operation, response) {
+        operation.setException({
+            status: response.status ,
+            statusText: response.statusText
+        });
+    },
+
+    
+    extractResponseData: Ext.identityFn,
+
+    
+    applyEncoding: function(value) {
+        return Ext.encode(value);
+    },
+});
