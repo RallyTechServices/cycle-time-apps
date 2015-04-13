@@ -64,5 +64,5 @@ Ext.override(Ext.data.proxy.Server, {
     
     applyEncoding: function(value) {
         return Ext.encode(value);
-    },
+    }
 });
