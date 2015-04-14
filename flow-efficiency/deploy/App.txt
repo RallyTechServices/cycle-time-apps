@@ -3,11 +3,11 @@
 <head>
     <title>Flow Efficiency</title>
     <!--  (c) 2014 Rally Software Development Corp.  All Rights Reserved. -->
-    <!--  Build Date: Wed Mar 04 2015 14:26:06 GMT-0700 (MST) -->
+    <!--  Build Date: Mon Apr 13 2015 16:19:58 GMT-0700 (PDT) -->
     
     <script type="text/javascript">
-        var APP_BUILD_DATE = "Wed Mar 04 2015 14:26:06 GMT-0700 (MST)";
-        var CHECKSUM = 72128595685;
+        var APP_BUILD_DATE = "Mon Apr 13 2015 16:19:58 GMT-0700 (PDT)";
+        var CHECKSUM = 72126017400;
     </script>
     
     <script type="text/javascript" src="/apps/2.0rc3/sdk.js"></script>
@@ -1014,7 +1014,7 @@ Ext.override(Ext.data.proxy.Server, {
     
     applyEncoding: function(value) {
         return Ext.encode(value);
-    },
+    }
 });
 
 Ext.define('Rally.technicalservices.Toolbox',{
