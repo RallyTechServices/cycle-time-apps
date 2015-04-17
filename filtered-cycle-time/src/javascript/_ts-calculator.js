@@ -119,7 +119,7 @@ Ext.define('CycleCalculator', {
         console.log("_getCycleTimeData -- field:", field, "start/end", startValue, "/", endValue, precedence);
         
         var start_index = -1;  
-        if (startValue != null){  //This is in case there is no start value (which means grab the first snapshot)
+        if (! Ext.isEmpty(startValue)){  //This is in case there is no start value (which means grab the first snapshot)
             var start_index = _.indexOf(precedence, startValue);
         }
         var end_index = _.indexOf(precedence, endValue);
