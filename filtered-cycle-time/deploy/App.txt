@@ -3,11 +3,11 @@
 <head>
     <title>Filtered Cycle Time</title>
     <!--  (c) 2014 Rally Software Development Corp.  All Rights Reserved. -->
-    <!--  Build Date: Mon Apr 20 2015 13:05:33 GMT-0700 (PDT) -->
+    <!--  Build Date: Mon Apr 20 2015 13:53:31 GMT-0700 (PDT) -->
     
     <script type="text/javascript">
-        var APP_BUILD_DATE = "Mon Apr 20 2015 13:05:33 GMT-0700 (PDT)";
-        var CHECKSUM = 70008288869;
+        var APP_BUILD_DATE = "Mon Apr 20 2015 13:53:31 GMT-0700 (PDT)";
+        var CHECKSUM = 69021117366;
     </script>
     
     <script type="text/javascript" src="/apps/2.0rc3/sdk.js"></script>
@@ -166,11 +166,9 @@ Ext.define('CycleCalculator', {
         this.mergeConfig(config);
     },
     runCalculation: function(snapshots) {   
-         console.log("modelnames: ", this.modelNames, " snapshots:", snapshots);
          var snaps_by_oid = Rally.technicalservices.Toolbox.aggregateSnapsByOid(snapshots);
-         console.log('snapsbyoid', Ext.Object.getKeys(snaps_by_oid).length);
          var date_buckets = Rally.technicalservices.Toolbox.getDateBuckets(this.startDate, this.endDate, this.granularity);
-         console.log('date_buckets',date_buckets);
+
          var cycle_time_data = [];
          
          Ext.Object.each(snaps_by_oid, function(oid, snaps){
@@ -256,8 +254,6 @@ Ext.define('CycleCalculator', {
 
     },
     _getCycleTimeData: function(snaps, field, startValue, endValue, precedence){
-        console.log("_getCycleTimeData -- field:", field, "start/end", startValue, "/", endValue, precedence);
-        
         var start_index = -1;  
         if (! Ext.isEmpty(startValue)){  //This is in case there is no start value (which means grab the first snapshot)
             var start_index = _.indexOf(precedence, startValue);
@@ -281,9 +277,7 @@ Ext.define('CycleCalculator', {
             start_date = Rally.util.DateTime.fromIsoString(snaps[0]._ValidFrom);
         }
         
-        Ext.each(snaps, function(snap){
-            console.log(snap.FormattedID, snap[field],snap);
-            
+        Ext.each(snaps, function(snap){            
             if (snap[field]){
                 previous_state_index = state_index;
                 state_index = _.indexOf(precedence, snap[field]);
@@ -303,8 +297,6 @@ Ext.define('CycleCalculator', {
             }
             
         }, this);
-
-        console.log('..',start_date, end_date);
         
         return {formattedId: snaps[0].FormattedID, seconds: seconds, days: days, endDate: end_date, startDate: start_date, artifactType: type, include: include };
     },
@@ -344,7 +336,7 @@ Ext.define('CycleCalculator', {
         if (  /PortfolioItem/.test(type) ) {
             color = this.color.PortfolioItem;
         }
-        console.log("_getColorForSeries", type, " is: ", color);
+
         return color;
     },
     _getSeries: function(cycle_time_data, date_buckets, granularity, type){
@@ -463,6 +455,7 @@ Ext.define('Rally.technicalservices.dialog.Filter',{
     autoShow: true,
     componentCls: "rly-popover dark-container",
     validFields: [],
+    app: null,
     initComponent: function() {
         this.items = this._getItems();
         this.buttons = this._getButtonConfig();
@@ -653,10 +646,10 @@ Ext.define('Rally.technicalservices.dialog.Filter',{
         var filters = [];  
         Ext.each(this.down('#ct-rows').items.items, function(item){
             if (this.down('#cb-filter-operator')){
-                property = item.down('#cb-filter-field').getValue();
-                operator = item.down('#cb-filter-operator').getValue();
-                val = item.down('#cb-filter-value').getValue(); 
-                display_property = item.down('#cb-filter-field').getRecord().get('displayName');
+                var property = item.down('#cb-filter-field').getValue();
+                var operator = item.down('#cb-filter-operator').getValue();
+                var val = item.down('#cb-filter-value').getValue(); 
+                var display_property = item.down('#cb-filter-field').getRecord().get('displayName');
                 if (property && operator) {
                     filters.push({
                         property: property,
@@ -774,6 +767,8 @@ Ext.define('Rally.technicalservices.dialog.Filter',{
         var field_name = field.get('name');
         var model_type = field.get('modelType');
         
+        var app = this.app;
+        
         switch(type){
             case 'BOOLEAN':  
                 ctl = {
@@ -785,7 +780,7 @@ Ext.define('Rally.technicalservices.dialog.Filter',{
             case 'DATE':
                 ctl = {
                     xtype: 'rallydatefield',
-                    allowNoEntry: false,
+                    allowNoEntry: false
                 };
                 break; 
             case 'TEXT':
@@ -797,7 +792,7 @@ Ext.define('Rally.technicalservices.dialog.Filter',{
                          xtype: 'rallyfieldvaluecombobox',
                          model: model_type,
                          field: field_name,
-                         allowNoEntry: false,
+                         allowNoEntry: false
                     };
                 }
                 break;
@@ -806,23 +801,24 @@ Ext.define('Rally.technicalservices.dialog.Filter',{
                 if (schema == 'Iteration') {
                     ctl = {
                           xtype: 'rallyiterationcombobox',
-                          allowNoEntry: false,
+                          allowNoEntry: false
                     };
                 } else if (schema == 'Release') {
                     ctl = {
                         xtype: 'rallyreleasecombobox',
-                        allowNoEntry: false,
+                        allowNoEntry: false
                     };
                 } else if (schema == 'User') {
                   ctl = {
                         xtype: 'rallyusersearchcombobox',
-                        project: this.getContext().getProject(),
+                        project: app.getContext().getProject(),
                         allowNoEntry: false,
+                        valueField: 'ObjectID'
                       };
                   } else if (schema == 'Project') {
                       ctl = {
                               xtype: 'rallyprojectpicker',
-                              allowNoEntry: false,
+                              allowNoEntry: false
                       };
                     
                 } else if (schema == 'State'){
@@ -830,7 +826,7 @@ Ext.define('Rally.technicalservices.dialog.Filter',{
                               xtype: 'rallyfieldvaluecombobox',
                               model: model_name,
                               field: field_name,
-                              allowNoEntry: false,
+                              allowNoEntry: false
                       };
                 }
                 break;
@@ -855,13 +851,16 @@ Ext.define('Rally.technicalservices.dialog.Filter',{
                 },
                 render: function(cb){
                     if (value){
+                        if (cb.xtype == "rallyusersearchcombobox") {
+                            value = "/user/" + value;
+                        }
                         cb.setValue(value);
                     }
                 }
             }
         });
         return ctl; 
-    },
+    }
 });
 Ext.override(Rally.ui.picker.FieldPicker, {
     _shouldShowField: function(field) {
@@ -1144,7 +1143,7 @@ Ext.define('CustomApp', {
          var deferred = Ext.create('Deft.Deferred');
          this.logger.log('_fetchFields', cycleStateFields, this.modelNames);
          var allowed_attribute_types = ['STATE','STRING'];
-         var additional_filterable_fields = ['PlanEstimate'];
+         var additional_filterable_fields = ['PlanEstimate','Owner'];
          var valid_fields = [];
          var filter_fields = [];
          
@@ -1480,6 +1479,7 @@ Ext.define('CustomApp', {
         Ext.create('Rally.technicalservices.dialog.Filter',{
             validFields: this.filterFields,
             filters: this.dataFilters,
+            app: this,
             listeners: {
                 scope: this,
                 customFilter: function(filters){

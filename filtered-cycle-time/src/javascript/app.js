@@ -124,7 +124,7 @@ Ext.define('CustomApp', {
          var deferred = Ext.create('Deft.Deferred');
          this.logger.log('_fetchFields', cycleStateFields, this.modelNames);
          var allowed_attribute_types = ['STATE','STRING'];
-         var additional_filterable_fields = ['PlanEstimate'];
+         var additional_filterable_fields = ['PlanEstimate','Owner'];
          var valid_fields = [];
          var filter_fields = [];
          
@@ -460,6 +460,7 @@ Ext.define('CustomApp', {
         Ext.create('Rally.technicalservices.dialog.Filter',{
             validFields: this.filterFields,
             filters: this.dataFilters,
+            app: this,
             listeners: {
                 scope: this,
                 customFilter: function(filters){

@@ -26,11 +26,9 @@ Ext.define('CycleCalculator', {
         this.mergeConfig(config);
     },
     runCalculation: function(snapshots) {   
-         console.log("modelnames: ", this.modelNames, " snapshots:", snapshots);
          var snaps_by_oid = Rally.technicalservices.Toolbox.aggregateSnapsByOid(snapshots);
-         console.log('snapsbyoid', Ext.Object.getKeys(snaps_by_oid).length);
          var date_buckets = Rally.technicalservices.Toolbox.getDateBuckets(this.startDate, this.endDate, this.granularity);
-         console.log('date_buckets',date_buckets);
+
          var cycle_time_data = [];
          
          Ext.Object.each(snaps_by_oid, function(oid, snaps){
@@ -116,8 +114,6 @@ Ext.define('CycleCalculator', {
 
     },
     _getCycleTimeData: function(snaps, field, startValue, endValue, precedence){
-        console.log("_getCycleTimeData -- field:", field, "start/end", startValue, "/", endValue, precedence);
-        
         var start_index = -1;  
         if (! Ext.isEmpty(startValue)){  //This is in case there is no start value (which means grab the first snapshot)
             var start_index = _.indexOf(precedence, startValue);
@@ -141,9 +137,7 @@ Ext.define('CycleCalculator', {
             start_date = Rally.util.DateTime.fromIsoString(snaps[0]._ValidFrom);
         }
         
-        Ext.each(snaps, function(snap){
-            console.log(snap.FormattedID, snap[field],snap);
-            
+        Ext.each(snaps, function(snap){            
             if (snap[field]){
                 previous_state_index = state_index;
                 state_index = _.indexOf(precedence, snap[field]);
@@ -163,8 +157,6 @@ Ext.define('CycleCalculator', {
             }
             
         }, this);
-
-        console.log('..',start_date, end_date);
         
         return {formattedId: snaps[0].FormattedID, seconds: seconds, days: days, endDate: end_date, startDate: start_date, artifactType: type, include: include };
     },
@@ -204,7 +196,7 @@ Ext.define('CycleCalculator', {
         if (  /PortfolioItem/.test(type) ) {
             color = this.color.PortfolioItem;
         }
-        console.log("_getColorForSeries", type, " is: ", color);
+
         return color;
     },
     _getSeries: function(cycle_time_data, date_buckets, granularity, type){
