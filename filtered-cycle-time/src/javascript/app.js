@@ -90,7 +90,7 @@ Ext.define('CustomApp', {
         });
     },
     _getGroupNames: function() {
-        group_names = {}; // key will be objectID
+        var group_names = {}; // key will be objectID
         var data = this.down('#cb-from-state').getStore().data;
         
         Ext.each(data.items,function(rec){
@@ -610,7 +610,7 @@ Ext.define('CustomApp', {
                             var field_box = this.ownerCt.down('#fields_box');
                             field_box.destroy();
                             
-                            this.ownerCt.add({
+                            var field_picker = this.ownerCt.add({
                                 name: 'cycleStateFields',
                                 itemId: 'fields_box',
                                 xtype: 'rallyfieldpicker',
@@ -626,6 +626,12 @@ Ext.define('CustomApp', {
                                     context: {project: null}
                                 }
                             });
+                            
+                            if (/PortfolioItem/.test(type)) {
+                                field_picker.setValue(['State']);
+                            } else {
+                                field_picker.setValue(['ScheduleState']);
+                            }
                         }
                         
                     },
@@ -636,7 +642,7 @@ Ext.define('CustomApp', {
                             var field_box = this.ownerCt.down('#fields_box');
                             field_box.destroy();
                             
-                            this.ownerCt.add({
+                            var field_picker = this.ownerCt.add({
                                 name: 'cycleStateFields',
                                 itemId: 'fields_box',
                                 xtype: 'rallyfieldpicker',
@@ -652,6 +658,12 @@ Ext.define('CustomApp', {
                                     context: {project: null}
                                 }
                             });
+                            
+                            if (/PortfolioItem/.test(type)) {
+                                field_picker.setValue(['State']);
+                            } else {
+                                field_picker.setValue(['ScheduleState']);
+                            }
                         }
                     }
                 },
@@ -699,11 +711,20 @@ Ext.define('CustomApp', {
     onSettingsUpdate: function (settings){
         //Build and save column settings...this means that we need to get the display names and multi-list
         var cycleStateFields_setting = this.getSetting('cycleStateFields');
-        if (cycleStateFields_setting instanceof Array){
-            cycleStateFields = cycleStateFields_setting;
-        } else {
+        var cycleStateFields = cycleStateFields_setting;
+        
+        if (! Ext.isArray(cycleStateFields_setting) ){
             cycleStateFields = cycleStateFields_setting.split(',');
         }
+        
+        console.log(settings.models, cycleStateFields);
+        if ( cycleStateFields.length === 0 ) {
+            cycleStateFields = ['ScheduleState'];
+            if ( /PortfolioItem/.test(settings.models) ) {
+                cycleStateFields = ['State'];
+            }
+        }
+        
         if ( settings.models && Ext.isString(settings.models) ) {
             settings.modelNames = settings.models.split(',');
         }
@@ -717,7 +738,6 @@ Ext.define('CustomApp', {
                 this._initializeApp(this.cycleFields);
             }
         });
-
 
     }
 });
