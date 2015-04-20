@@ -23,8 +23,9 @@ Ext.define('CustomApp', {
     ],
     config: {
         defaultSettings: {
-            cycleStateFields:  "ScheduleState"
-        },
+            cycleStateFields:  "ScheduleState",
+            modelNames: ['HierarchicalRequirement','Defect']
+        }
     },
     defaultField: 'ScheduleState',
     cycleFields: [],
@@ -41,11 +42,11 @@ Ext.define('CustomApp', {
     }],
     hiddenSeries: [],
     dateRangeStore: [
-                    {name: 'Last Complete Month', value: -1},
-                    {name: 'Last 2 Complete Months', value: -2},
-                    {name: 'Last 3 Complete Months', value: -3},
-                    {name: 'Last 6 Complete Months', value: -6},
-                    {name: 'Last 12 Complete Months', value: -12}
+        {name: 'Last Complete Month', value: -1},
+        {name: 'Last 2 Complete Months', value: -2},
+        {name: 'Last 3 Complete Months', value: -3},
+        {name: 'Last 6 Complete Months', value: -6},
+        {name: 'Last 12 Complete Months', value: -12}
     ],
     defaultDateRange: -3,
     dataFilters: [],
@@ -88,25 +89,50 @@ Ext.define('CustomApp', {
             }
         });
     },
+    _getGroupNames: function() {
+        var group_names = {}; // key will be objectID
+        var data = this.down('#cb-from-state').getStore().data;
+        
+        Ext.each(data.items,function(rec){
+            var oid = rec.get('ObjectID');
+            var trimmed_oid = oid.replace(/\/state\//,"");
+            if ( oid !== trimmed_oid ) {
+                oid = parseInt(trimmed_oid,10);
+            }
+            group_names[oid] = rec.get('name');
+            
+        });
+        return group_names;  
+    },
     _getGroupPrecedence: function(){
         var data = this.down('#cb-from-state').getStore().data;
         
         var group = [];  
         Ext.each(data.items,function(rec){
-            group.push(rec.get('ObjectID'));
+            var oid = rec.get('ObjectID');
+            var trimmed_oid = oid.replace(/\/state\//,"");
+            if ( oid !== trimmed_oid ) {
+                oid = parseInt(trimmed_oid,10);
+            }
+            group.push(oid);
+            
         });
         this.logger.log('_getGroupPrecedence',this.down('#cb-from-state').getStore(), group);
         return group;  
     },
-     _fetchFields: function(cycleStateFields){
+    _fetchFields: function(cycleStateFields){
          var deferred = Ext.create('Deft.Deferred');
-         this.logger.log('_fetchFields', cycleStateFields);
+         this.logger.log('_fetchFields', cycleStateFields, this.modelNames);
          var allowed_attribute_types = ['STATE','STRING'];
-         var additional_filterable_fields = ['PlanEstimate'];
+         var additional_filterable_fields = ['PlanEstimate','Owner'];
          var valid_fields = [];
          var filter_fields = [];
          
-         var promises = [this._fetchModelFields('HierarchicalRequirement'),this._fetchModelFields('Defect')];
+         var promises = [];
+         Ext.Array.each( this.modelNames , function(model_name) {
+            promises.push(this._fetchModelFields(model_name));
+         },this);
+         
          Deft.Promise.all(promises).then({
              scope: this,
              success: function(fields){
@@ -141,7 +167,7 @@ Ext.define('CustomApp', {
              type: type,
              scope: this, 
              success: function(model) {
-                 this.logger.log('_fetchModelFields', model.getFields());
+                 this.logger.log('_fetchModelFields', type, model.getFields());
                  deferred.resolve(model.getFields());
 
              }
@@ -259,10 +285,20 @@ Ext.define('CustomApp', {
         }
     },
     _getStartState: function(){
-        return this.down('#cb-from-state').getValue();
+        var state = this.down('#cb-from-state').getValue().replace(/\/state\//,""); // for the pi states
+        
+        if ( parseInt(state,10) > 0 ) {
+            state = parseInt(state,10);
+        }
+        return state
     },
     _getEndState: function(){
-        return this.down('#cb-to-state').getValue();
+        var state = this.down('#cb-to-state').getValue().replace(/\/state\//,""); // for the pi states
+        
+        if ( parseInt(state,10) > 0 ) {
+            state = parseInt(state,10);
+        }
+        return state;
     },
 
     _createChart: function(){
@@ -279,7 +315,13 @@ Ext.define('CustomApp', {
         this.logger.log('_createChart', field, start_state, this._getEndState(), granularity, start_date, end_date);
 
         this.setLoading('Fetching data...');
-        this.loadSnapshots([this._getStoreConfig('Defect'),this._getStoreConfig('HierarchicalRequirement')]).then({
+        var store_configs = [];
+        
+        Ext.Array.each( this.modelNames , function(model_name) {
+            store_configs.push(this._getStoreConfig(model_name));
+         },this);
+         
+        this.loadSnapshots(store_configs).then({
             scope: this,
             success: function(snapshots){
                 var calc = Ext.create('CycleCalculator', {
@@ -287,6 +329,8 @@ Ext.define('CustomApp', {
                     cycleStartValue: start_state,
                     cycleEndValue: this._getEndState(),
                     cyclePrecedence: this._getGroupPrecedence(),
+                    cycleNames: this._getGroupNames(),
+                    modelNames: this.modelNames,
                     startDate: start_date,
                     endDate: end_date,
                     granularity: granularity,
@@ -308,6 +352,12 @@ Ext.define('CustomApp', {
             Rally.technicalservices.FileUtilities.saveTextAsFile(text, 'cycle-time.csv');
         }
     },
+    _getChartColors: function() {
+        if ( this.modelNames.length > 1 ) {
+            return ['#000000','#8bbc21','#c42525','#8bbc21','#c42525'];
+        }
+        return ['#8bbc21','#8bbc21','#8bbc21','#8bbc21'];
+    },
     _drawChart: function(chart_data){
         this.logger.log('_drawChart');
         
@@ -318,15 +368,23 @@ Ext.define('CustomApp', {
         }
 
         var granularity_rec = this.down('#cb-granularity').getRecord();
-        var title_text = 'Average Cycle Time from ' + (this._getStartState() || '(None)') + ' to ' + this._getEndState();
+        
+        var state_names = this._getGroupNames();
+        
+        var start_state = state_names[this._getStartState()] || this._getStartState() || '(None)';
+        var end_state = state_names[this._getEndState()] || this._getEndState() || '(None)';
+        
+        var title_text = 'Average Cycle Time from ' + start_state + ' to ' + end_state;
         var tick_interval = granularity_rec.get('tickInterval');  
+        
+        var chart_colors = this._getChartColors();
         
         this.down('#display_box').add({
             xtype: 'rallychart',
             itemId: 'rally-chart',
             chartData: chart_data, 
             loadMask: false,
-            chartColors:['#000000','#8bbc21','#c42525','#8bbc21','#c42525'],
+            chartColors: chart_colors,
             updateAfterRender: function(){
                 if (me.hiddenSeries && me.hiddenSeries.length > 0){
                     Ext.each(this.chartData.series, function(s){
@@ -348,7 +406,7 @@ Ext.define('CustomApp', {
                 xAxis: {
                     tickInterval: tick_interval,
                     title: {
-                        text: 'Date Entered ' + this._getEndState()
+                        text: 'Date Entered ' + end_state
                     }
                 },
                 yAxis: [
@@ -365,7 +423,7 @@ Ext.define('CustomApp', {
                             format: '{point.y:.1f}'
                         },
                         marker: {
-                            enabled: false,
+                            enabled: false
                         },
                         events: {
                             legendItemClick: function () {
@@ -385,7 +443,7 @@ Ext.define('CustomApp', {
                             pointFormat: '<span style="color:{series.color}">\u25CF</span> {series.name}: <b>{point.y:.1f}</b><br/>'
                         }
                     }
-                },
+                }
 
             }
         });        
@@ -402,6 +460,7 @@ Ext.define('CustomApp', {
         Ext.create('Rally.technicalservices.dialog.Filter',{
             validFields: this.filterFields,
             filters: this.dataFilters,
+            app: this,
             listeners: {
                 scope: this,
                 customFilter: function(filters){
@@ -497,7 +556,7 @@ Ext.define('CustomApp', {
              sort: {
                  _ValidFrom: 1
              },
-             context: this.getContext().getDataContext(),
+             context: this.getContext().getDataContext()
         }
         this.logger.log('_getStoreConfig', store_config);
         return store_config;
@@ -515,29 +574,108 @@ Ext.define('CustomApp', {
         this.logger.log('_getFetchFields', Ext.Array.merge(fetch_fields,filter_fields));
         return Ext.Array.merge(fetch_fields,filter_fields);
     },
+    _addArtifactToChoices: function(store){
+        store.add({DisplayName:'Story/Defect',TypePath:['HierarchicalRequirement','Defect']});
+    },
     /********************************************
     /* Overrides for App class
     /*
     /********************************************/
     //getSettingsFields:  Override for App    
     getSettingsFields: function() {
+        var me = this;
         
         return [
-                {
-            name: 'cycleStateFields',
-            xtype: 'rallyfieldpicker',
-            modelTypes: ['HierarchicalRequirement','Defect'],
-            labelWidth: 100,
-            fieldLabel: 'Valid Cycle States',
-            labelAlign: 'left',
-            minWidth: 400,
-            margin: '10 0 255 0',
-            autoExpand: false,
-            alwaysExpanded: false,
-            storeConfig: {
-                context: {project: null}
+            {
+                name: 'models',
+                xtype: 'rallycombobox',
+                autoExpand: true,
+                storeConfig: {
+                    model:'TypeDefinition',
+                    filters: [ {property:'TypePath',operator:'contains',value:'PortfolioItem/'}]
+                },
+                displayField: 'DisplayName',
+                valueField: 'TypePath',
+                fieldLabel:  'Record Type',
+                labelAlign: 'left',
+                minWidth: 400,
+                labelWidth: 100,
+                margin: 10,
+                listeners: {
+                    ready: function(cb) {
+                        me._addArtifactToChoices(cb.getStore());
+                        
+                        var type = cb.getValue();
+                        if ( type && Ext.isString(type) ) {
+                            var models = type.split(',');
+                            var field_box = this.ownerCt.down('#fields_box');
+                            field_box.destroy();
+                            
+                            var field_picker = this.ownerCt.add({
+                                name: 'cycleStateFields',
+                                itemId: 'fields_box',
+                                xtype: 'rallyfieldpicker',
+                                modelTypes: models,
+                                labelWidth: 100,
+                                fieldLabel: 'Valid Cycle States',
+                                labelAlign: 'left',
+                                minWidth: 400,
+                                margin: '10 0 250 10',
+                                autoExpand: false,
+                                alwaysExpanded: false,
+                                storeConfig: {
+                                    context: {project: null}
+                                }
+                            });
+                            
+                            if (/PortfolioItem/.test(type)) {
+                                field_picker.setValue(['State']);
+                            } else {
+                                field_picker.setValue(['ScheduleState']);
+                            }
+                        }
+                        
+                    },
+                    select: function(cb) {
+                        var type = cb.getValue();
+                        if ( type && Ext.isString(type) ) {
+                            var models = type.split(',');
+                            var field_box = this.ownerCt.down('#fields_box');
+                            field_box.destroy();
+                            
+                            var field_picker = this.ownerCt.add({
+                                name: 'cycleStateFields',
+                                itemId: 'fields_box',
+                                xtype: 'rallyfieldpicker',
+                                modelTypes: models,
+                                labelWidth: 100,
+                                fieldLabel: 'Valid Cycle States',
+                                labelAlign: 'left',
+                                minWidth: 400,
+                                margin: '10 0 250 10',
+                                autoExpand: false,
+                                alwaysExpanded: false,
+                                storeConfig: {
+                                    context: {project: null}
+                                }
+                            });
+                            
+                            if (/PortfolioItem/.test(type)) {
+                                field_picker.setValue(['State']);
+                            } else {
+                                field_picker.setValue(['ScheduleState']);
+                            }
+                        }
+                    }
+                },
+                readyEvent: 'ready'
+            },
+            {
+                name: 'cycleStateFields',
+                itemId: 'fields_box',
+                xtype: 'container'
             }
-        }];
+        ];
     },
     isExternal: function(){
       return typeof(this.getAppId()) == 'undefined';
@@ -574,12 +712,26 @@ Ext.define('CustomApp', {
     onSettingsUpdate: function (settings){
         //Build and save column settings...this means that we need to get the display names and multi-list
         var cycleStateFields_setting = this.getSetting('cycleStateFields');
-        if (cycleStateFields_setting instanceof Array){
-            cycleStateFields = cycleStateFields_setting;
-        } else {
+        var cycleStateFields = cycleStateFields_setting;
+        
+        if (! Ext.isArray(cycleStateFields_setting) ){
             cycleStateFields = cycleStateFields_setting.split(',');
         }
+        
+        console.log(settings.models, cycleStateFields);
+        if ( cycleStateFields.length === 0 ) {
+            cycleStateFields = ['ScheduleState'];
+            if ( /PortfolioItem/.test(settings.models) ) {
+                cycleStateFields = ['State'];
+            }
+        }
+        
+        if ( settings.models && Ext.isString(settings.models) ) {
+            settings.modelNames = settings.models.split(',');
+        }
         this.logger.log('onSettingsUpdate',settings, cycleStateFields);
+        Ext.apply(this, settings);
+        
         this._fetchFields(cycleStateFields).then({
             scope: this,
             success: function(){
@@ -587,7 +739,6 @@ Ext.define('CustomApp', {
                 this._initializeApp(this.cycleFields);
             }
         });
-
 
     }
 });

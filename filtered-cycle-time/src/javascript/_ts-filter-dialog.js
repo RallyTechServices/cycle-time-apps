@@ -4,6 +4,7 @@ Ext.define('Rally.technicalservices.dialog.Filter',{
     autoShow: true,
     componentCls: "rly-popover dark-container",
     validFields: [],
+    app: null,
     initComponent: function() {
         this.items = this._getItems();
         this.buttons = this._getButtonConfig();
@@ -194,10 +195,10 @@ Ext.define('Rally.technicalservices.dialog.Filter',{
         var filters = [];  
         Ext.each(this.down('#ct-rows').items.items, function(item){
             if (this.down('#cb-filter-operator')){
-                property = item.down('#cb-filter-field').getValue();
-                operator = item.down('#cb-filter-operator').getValue();
-                val = item.down('#cb-filter-value').getValue(); 
-                display_property = item.down('#cb-filter-field').getRecord().get('displayName');
+                var property = item.down('#cb-filter-field').getValue();
+                var operator = item.down('#cb-filter-operator').getValue();
+                var val = item.down('#cb-filter-value').getValue(); 
+                var display_property = item.down('#cb-filter-field').getRecord().get('displayName');
                 if (property && operator) {
                     filters.push({
                         property: property,
@@ -315,6 +316,8 @@ Ext.define('Rally.technicalservices.dialog.Filter',{
         var field_name = field.get('name');
         var model_type = field.get('modelType');
         
+        var app = this.app;
+        
         switch(type){
             case 'BOOLEAN':  
                 ctl = {
@@ -326,7 +329,7 @@ Ext.define('Rally.technicalservices.dialog.Filter',{
             case 'DATE':
                 ctl = {
                     xtype: 'rallydatefield',
-                    allowNoEntry: false,
+                    allowNoEntry: false
                 };
                 break; 
             case 'TEXT':
@@ -338,7 +341,7 @@ Ext.define('Rally.technicalservices.dialog.Filter',{
                          xtype: 'rallyfieldvaluecombobox',
                          model: model_type,
                          field: field_name,
-                         allowNoEntry: false,
+                         allowNoEntry: false
                     };
                 }
                 break;
@@ -347,23 +350,24 @@ Ext.define('Rally.technicalservices.dialog.Filter',{
                 if (schema == 'Iteration') {
                     ctl = {
                           xtype: 'rallyiterationcombobox',
-                          allowNoEntry: false,
+                          allowNoEntry: false
                     };
                 } else if (schema == 'Release') {
                     ctl = {
                         xtype: 'rallyreleasecombobox',
-                        allowNoEntry: false,
+                        allowNoEntry: false
                     };
                 } else if (schema == 'User') {
                   ctl = {
                         xtype: 'rallyusersearchcombobox',
-                        project: this.getContext().getProject(),
+                        project: app.getContext().getProject(),
                         allowNoEntry: false,
+                        valueField: 'ObjectID'
                       };
                   } else if (schema == 'Project') {
                       ctl = {
                               xtype: 'rallyprojectpicker',
-                              allowNoEntry: false,
+                              allowNoEntry: false
                       };
                     
                 } else if (schema == 'State'){
@@ -371,7 +375,7 @@ Ext.define('Rally.technicalservices.dialog.Filter',{
                               xtype: 'rallyfieldvaluecombobox',
                               model: model_name,
                               field: field_name,
-                              allowNoEntry: false,
+                              allowNoEntry: false
                       };
                 }
                 break;
@@ -396,11 +400,14 @@ Ext.define('Rally.technicalservices.dialog.Filter',{
                 },
                 render: function(cb){
                     if (value){
+                        if (cb.xtype == "rallyusersearchcombobox") {
+                            value = "/user/" + value;
+                        }
                         cb.setValue(value);
                     }
                 }
             }
         });
         return ctl; 
-    },
+    }
 });

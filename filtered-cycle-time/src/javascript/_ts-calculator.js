@@ -6,15 +6,18 @@ Ext.define('CycleCalculator', {
         cycleStartValue: 'Defined',
         cycleEndValue: 'Accepted',
         cyclePrecedence: [],
+        cycleNames: {}, 
         startDate: null,
         endDate: null,
         granularity: "month",
         dateFormat: "M yyyy",
         dataFilters: [],
+        modelNames: [],
         color: {
             Defect:'red',
             HierarchicalRequirement: 'green',
-            Combined: 'blue'
+            Combined: 'blue',
+            PortfolioItem: 'blue'
         }
     },
     cycleTimeData: null,
@@ -23,32 +26,32 @@ Ext.define('CycleCalculator', {
         this.mergeConfig(config);
     },
     runCalculation: function(snapshots) {   
-         console.log(snapshots);
          var snaps_by_oid = Rally.technicalservices.Toolbox.aggregateSnapsByOid(snapshots);
-         console.log('snapsbyoid', Ext.Object.getKeys(snaps_by_oid).length);
          var date_buckets = Rally.technicalservices.Toolbox.getDateBuckets(this.startDate, this.endDate, this.granularity);
-         console.log('date_buckets',date_buckets);
+
          var cycle_time_data = [];
          
          Ext.Object.each(snaps_by_oid, function(oid, snaps){
              var ctd = this._getCycleTimeData(snaps, this.cycleField, this.cycleStartValue, this.cycleEndValue, this.cyclePrecedence);
              if (ctd.include){
-                 cycle_time_data.push(ctd);
+                cycle_time_data.push(ctd);
              }
          },this);
          
          
          var series = [];
-         console.log(this.color);
-         series.push(this._getSeries(cycle_time_data, date_buckets, this.granularity,undefined,'black'));  
-         var hr_series = this._getSeries(cycle_time_data, date_buckets, this.granularity,'HierarchicalRequirement','');
-         series.push(hr_series);  
+
+         if ( this.modelNames.length > 1 ) {
+            series.push(this._getSeries(cycle_time_data, date_buckets, this.granularity,undefined));
+         }
          
-         var defect_series = this._getSeries(cycle_time_data, date_buckets, this.granularity,'Defect',this.color.Defect);
-         series.push(defect_series);  
+         Ext.Array.each(this.modelNames, function(type) {
+            series.push(this._getSeries(cycle_time_data, date_buckets, this.granularity,type));
+         },this);
          
-         series.push(this._getTrendline(hr_series));
-         series.push(this._getTrendline(defect_series));
+         Ext.Array.each(this.modelNames,function(type){
+            series.push(this._getTrendline(this._getSeries(cycle_time_data, date_buckets, this.granularity,type)));
+         },this);
 
          categories = Rally.technicalservices.Toolbox.formatDateBuckets(date_buckets,this.dateFormat);
          
@@ -67,7 +70,7 @@ Ext.define('CycleCalculator', {
         }
     },
 
-    _getTrendline: function(series, color){
+    _getTrendline: function(series){
         /**
          * Regression Equation(y) = a + bx  
          * Slope(b) = (NΣXY - (ΣX)(ΣY)) / (NΣX2 - (ΣX)2) 
@@ -103,7 +106,7 @@ Ext.define('CycleCalculator', {
         this.logger.log('_getTrendline', y);
         return {
              name: series.name + ' Trendline',
-             color: color,
+             color: series.color,
              data: y,
              display: 'line',
              dashStyle: 'Dash'
@@ -112,7 +115,7 @@ Ext.define('CycleCalculator', {
     },
     _getCycleTimeData: function(snaps, field, startValue, endValue, precedence){
         var start_index = -1;  
-        if (startValue != null){  //This is in case there is no start value (which means grab the first snapshot)
+        if (! Ext.isEmpty(startValue)){  //This is in case there is no start value (which means grab the first snapshot)
             var start_index = _.indexOf(precedence, startValue);
         }
         var end_index = _.indexOf(precedence, endValue);
@@ -128,18 +131,24 @@ Ext.define('CycleCalculator', {
         var seconds = null;
         var days = null;
         var include = false; 
-        Ext.each(snaps, function(snap){
-            
+        console.log('--');
+        
+        if ( start_index == -1 ) {
+            start_date = Rally.util.DateTime.fromIsoString(snaps[0]._ValidFrom);
+        }
+        
+        Ext.each(snaps, function(snap){            
             if (snap[field]){
                 previous_state_index = state_index;
                 state_index = _.indexOf(precedence, snap[field]);
             }
-            if (state_index >= start_index && previous_state_index < start_index){
+            if (state_index >= start_index && previous_state_index < start_index && start_index > -1){
                 start_date = Rally.util.DateTime.fromIsoString(snap._ValidFrom);  
             }
 
             if (state_index >= end_index && previous_state_index < end_index){
                 end_date = Rally.util.DateTime.fromIsoString(snap._ValidFrom);
+                
                 if (start_date != null){
                     seconds = Rally.util.DateTime.getDifference(end_date,start_date,"second");
                     days = Math.floor(seconds/86400) + 1;  
@@ -148,7 +157,7 @@ Ext.define('CycleCalculator', {
             }
             
         }, this);
-
+        
         return {formattedId: snaps[0].FormattedID, seconds: seconds, days: days, endDate: end_date, startDate: start_date, artifactType: type, include: include };
     },
     _snapMeetsFilterCriteria: function(snap){
@@ -178,7 +187,19 @@ Ext.define('CycleCalculator', {
         
         return is_filtered;  
     },
-    _getSeries: function(cycle_time_data, date_buckets, granularity, type, color){
+    
+    _getColorForSeries: function(type) {
+        var color = 'black';
+        if ( this.color[type]) {
+            color = this.color[type];
+        }
+        if (  /PortfolioItem/.test(type) ) {
+            color = this.color.PortfolioItem;
+        }
+
+        return color;
+    },
+    _getSeries: function(cycle_time_data, date_buckets, granularity, type){
         var series_raw_data = [];
         var series_data = [];
         var tooltip_data = [];
@@ -202,14 +223,12 @@ Ext.define('CycleCalculator', {
             if (series_raw_data[i].length > 0){
                 series_data[i].y = Ext.Array.mean(series_raw_data[i]);
                 series_data[i].n = '(' + series_raw_data[i].length + ' Artifacts)';
-                console.log(date_buckets[i],series_data[i].y,series_raw_data[i]);
-
             } 
         }
 
         return {
              name: this._getSeriesName(type),
-             color: color,
+             color: this._getColorForSeries(type),
              data: series_data
          };
     },
@@ -221,6 +240,6 @@ Ext.define('CycleCalculator', {
                 type_text = "User Story";
             }
         }
-        return Ext.String.format(type_text);   
-    },
+        return Ext.String.format(type_text);
+    }
 });
