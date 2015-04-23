@@ -3,11 +3,11 @@
 <head>
     <title>Filtered Cycle Time</title>
     <!--  (c) 2014 Rally Software Development Corp.  All Rights Reserved. -->
-    <!--  Build Date: Mon Apr 20 2015 13:53:31 GMT-0700 (PDT) -->
+    <!--  Build Date: Wed Apr 22 2015 17:41:13 GMT-0700 (PDT) -->
     
     <script type="text/javascript">
-        var APP_BUILD_DATE = "Mon Apr 20 2015 13:53:31 GMT-0700 (PDT)";
-        var CHECKSUM = 69021117366;
+        var APP_BUILD_DATE = "Wed Apr 22 2015 17:41:13 GMT-0700 (PDT)";
+        var CHECKSUM = 69238219619;
     </script>
     
     <script type="text/javascript" src="/apps/2.0rc3/sdk.js"></script>
@@ -873,10 +873,16 @@ Ext.override(Rally.ui.picker.FieldPicker, {
             if ( attr_def.ElementName == "State" ) { 
                 can_use = true;
             }
-            
+
             if ( attr_def.Constrained && Ext.Array.contains(allowed_attribute_types, attr_def.AttributeType) && attr_def.ReadOnly == false ) {
                 can_use = true;
             }
+            
+            if ( attr_def.ElementName == "c_ProjectManager" ) {
+                 can_use = false;
+            }
+            
+            
             return can_use
         }
         return false;
