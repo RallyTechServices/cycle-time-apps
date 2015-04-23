@@ -249,12 +249,16 @@ Ext.define('CycleCalculator', {
         Ext.each(cycle_time_data, function(cdata){
             for (var i=0; i<date_buckets.length; i++){
                 if ((type == undefined || type == cdata.artifactType) && cdata.endDate >= date_buckets[i] && cdata.endDate < Rally.util.DateTime.add(date_buckets[i],granularity,1)){
-                    var efficiency = 1;
+                    //var efficiency = 100;
                     if (cdata.seconds > 0){
                         var adjusted_cycle_time = (cdata.seconds - cdata.blockedTime - cdata.readyTime);  
-                        efficiency = (adjusted_cycle_time/cdata.seconds) * 100;
+                        var efficiency = (adjusted_cycle_time/cdata.seconds) * 100;
+                        series_raw_data[i].push(efficiency);
                     }
-                    series_raw_data[i].push(efficiency);
+                    if (date_buckets[i] > new Date("03/31/2015")){
+                        console.log('efficiency date, cycle, blocked, ready',efficiency, date_buckets[i],cdata.seconds, cdata.blockedTime, cdata.readyTime);
+                    }
+                    //series_raw_data[i].push(efficiency);
                 }
             }
         });

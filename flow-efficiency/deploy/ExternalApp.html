@@ -3,10 +3,10 @@
 <head>
     <title>Flow Efficiency</title>
     <!--  (c) 2014 Rally Software Development Corp.  All Rights Reserved. -->
-    <!--  Build Date: Wed Mar 04 2015 14:26:06 GMT-0700 (MST) -->
+    <!--  Build Date: Thu Apr 23 2015 10:12:32 GMT-0600 (MDT) -->
     
     <script type="text/javascript">
-        var APP_BUILD_DATE = "Wed Mar 04 2015 14:26:06 GMT-0700 (MST)";
+        var APP_BUILD_DATE = "Thu Apr 23 2015 10:12:32 GMT-0600 (MDT)";
         var CHECKSUM = [%= checksum %];
     </script>
     
@@ -389,12 +389,16 @@ Ext.define('CycleCalculator', {
         Ext.each(cycle_time_data, function(cdata){
             for (var i=0; i<date_buckets.length; i++){
                 if ((type == undefined || type == cdata.artifactType) && cdata.endDate >= date_buckets[i] && cdata.endDate < Rally.util.DateTime.add(date_buckets[i],granularity,1)){
-                    var efficiency = 1;
+                    //var efficiency = 100;
                     if (cdata.seconds > 0){
                         var adjusted_cycle_time = (cdata.seconds - cdata.blockedTime - cdata.readyTime);  
-                        efficiency = (adjusted_cycle_time/cdata.seconds) * 100;
+                        var efficiency = (adjusted_cycle_time/cdata.seconds) * 100;
+                        series_raw_data[i].push(efficiency);
                     }
-                    series_raw_data[i].push(efficiency);
+                    if (date_buckets[i] > new Date("03/31/2015")){
+                        console.log('efficiency date, cycle, blocked, ready',efficiency, date_buckets[i],cdata.seconds, cdata.blockedTime, cdata.readyTime);
+                    }
+                    //series_raw_data[i].push(efficiency);
                 }
             }
         });
@@ -1014,7 +1018,7 @@ Ext.override(Ext.data.proxy.Server, {
     
     applyEncoding: function(value) {
         return Ext.encode(value);
-    },
+    }
 });
 
 Ext.define('Rally.technicalservices.Toolbox',{
