@@ -103,7 +103,6 @@ Ext.define('Rally.technicalservices.dialog.Filter',{
                 parent_ct.down('#cb-filter-value').destroy(); 
             }
 
-
             var op_val = operator || '=';
             var operator_ctl = this._getOperatorControl(rec, op_val, 'cb-filter-operator');
             parent_ct.add(operator_ctl);
@@ -191,20 +190,41 @@ Ext.define('Rally.technicalservices.dialog.Filter',{
         this.down('#applyButton').setDisabled(disabled);
         this.down('#btn-add').setDisabled(add_disabled);
     },
+    /* 
+     * In some cases, we want to strip the value returned or make it look
+     * different somehow.  (E.g., we want the preliminary estimate to just show the ID
+     */
+    _cleanValue: function(val) {
+        if ( /\/preliminaryestimate\//.test(val)) {
+            val = val.replace(/\/preliminaryestimate\//,"");
+            val = parseInt(val,10);
+        }
+        if (/\/state\//.test(val)) {
+            val = val.replace(/\/state\//,"")
+            val = parseInt(val,10);
+        }
+
+                    
+        return val;
+    },
     _onApplyClick: function() {
         var filters = [];  
         Ext.each(this.down('#ct-rows').items.items, function(item){
             if (this.down('#cb-filter-operator')){
                 var property = item.down('#cb-filter-field').getValue();
                 var operator = item.down('#cb-filter-operator').getValue();
-                var val = item.down('#cb-filter-value').getValue(); 
+                var val = this._cleanValue( item.down('#cb-filter-value').getValue() ); 
                 var display_property = item.down('#cb-filter-field').getRecord().get('displayName');
+                var display_value = item.down('#cb-filter-value').displayValue || val;
+                
+                console.log("DISPLAY:", display_value);
                 if (property && operator) {
                     filters.push({
                         property: property,
                         operator: operator,
                         value: val,
-                        displayProperty: display_property
+                        displayProperty: display_property,
+                        displayValue: display_value
                     });
                 }
             }
@@ -370,14 +390,15 @@ Ext.define('Rally.technicalservices.dialog.Filter',{
                               allowNoEntry: false
                       };
                     
-                } else if (schema == 'State'){
-                      ctl = {
-                              xtype: 'rallyfieldvaluecombobox',
-                              model: model_name,
-                              field: field_name,
-                              allowNoEntry: false
-                      };
-                }
+                } else if ( (schema == 'State') || ( schema == 'PreliminaryEstimate' ) ) {
+                    ctl = {
+                        xtype: 'rallyfieldvaluecombobox',
+                        prefix: Ext.util.Format.lowercase(schema),
+                        model: model_type,
+                        field: field_name,
+                        allowNoEntry: false
+                    };
+                } 
                 break;
             case 'DECIMAL':
             case 'INTEGER':
@@ -392,7 +413,16 @@ Ext.define('Rally.technicalservices.dialog.Filter',{
             margin: 5,
             listeners: {
                 scope: this,
-                change: this._validateFilters,
+                change: function(cb) {
+                    if ( cb.xtype == "rallyfieldvaluecombobox" ) {
+                        cb.displayValue = cb.getRecord().get("name");
+                    }
+                    
+                    if ( cb.xtype == "rallyusersearchcombobox" ) {
+                        cb.displayValue = cb.getRecord().get("_refObjectName");
+                    }
+                    this._validateFilters();
+                },
                 ready: function(cb){
                     if (value){
                         cb.setValue(value);
@@ -403,6 +433,10 @@ Ext.define('Rally.technicalservices.dialog.Filter',{
                         if (cb.xtype == "rallyusersearchcombobox") {
                             value = "/user/" + value;
                         }
+                        if ( cb.prefix && value > 0 ) {
+                            value = "/" + cb.prefix + "/" + value;
+                        }
+
                         cb.setValue(value);
                     }
                 }

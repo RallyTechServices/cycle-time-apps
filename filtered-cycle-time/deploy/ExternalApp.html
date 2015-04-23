@@ -3,10 +3,10 @@
 <head>
     <title>Filtered Cycle Time</title>
     <!--  (c) 2014 Rally Software Development Corp.  All Rights Reserved. -->
-    <!--  Build Date: Wed Apr 22 2015 17:41:13 GMT-0700 (PDT) -->
+    <!--  Build Date: Wed Apr 22 2015 19:24:29 GMT-0700 (PDT) -->
     
     <script type="text/javascript">
-        var APP_BUILD_DATE = "Wed Apr 22 2015 17:41:13 GMT-0700 (PDT)";
+        var APP_BUILD_DATE = "Wed Apr 22 2015 19:24:29 GMT-0700 (PDT)";
         var CHECKSUM = [%= checksum %];
     </script>
     
@@ -554,7 +554,6 @@ Ext.define('Rally.technicalservices.dialog.Filter',{
                 parent_ct.down('#cb-filter-value').destroy(); 
             }
 
-
             var op_val = operator || '=';
             var operator_ctl = this._getOperatorControl(rec, op_val, 'cb-filter-operator');
             parent_ct.add(operator_ctl);
@@ -642,20 +641,41 @@ Ext.define('Rally.technicalservices.dialog.Filter',{
         this.down('#applyButton').setDisabled(disabled);
         this.down('#btn-add').setDisabled(add_disabled);
     },
+    /* 
+     * In some cases, we want to strip the value returned or make it look
+     * different somehow.  (E.g., we want the preliminary estimate to just show the ID
+     */
+    _cleanValue: function(val) {
+        if ( /\/preliminaryestimate\//.test(val)) {
+            val = val.replace(/\/preliminaryestimate\//,"");
+            val = parseInt(val,10);
+        }
+        if (/\/state\//.test(val)) {
+            val = val.replace(/\/state\//,"")
+            val = parseInt(val,10);
+        }
+
+                    
+        return val;
+    },
     _onApplyClick: function() {
         var filters = [];  
         Ext.each(this.down('#ct-rows').items.items, function(item){
             if (this.down('#cb-filter-operator')){
                 var property = item.down('#cb-filter-field').getValue();
                 var operator = item.down('#cb-filter-operator').getValue();
-                var val = item.down('#cb-filter-value').getValue(); 
+                var val = this._cleanValue( item.down('#cb-filter-value').getValue() ); 
                 var display_property = item.down('#cb-filter-field').getRecord().get('displayName');
+                var display_value = item.down('#cb-filter-value').displayValue || val;
+                
+                console.log("DISPLAY:", display_value);
                 if (property && operator) {
                     filters.push({
                         property: property,
                         operator: operator,
                         value: val,
-                        displayProperty: display_property
+                        displayProperty: display_property,
+                        displayValue: display_value
                     });
                 }
             }
@@ -821,14 +841,15 @@ Ext.define('Rally.technicalservices.dialog.Filter',{
                               allowNoEntry: false
                       };
                     
-                } else if (schema == 'State'){
-                      ctl = {
-                              xtype: 'rallyfieldvaluecombobox',
-                              model: model_name,
-                              field: field_name,
-                              allowNoEntry: false
-                      };
-                }
+                } else if ( (schema == 'State') || ( schema == 'PreliminaryEstimate' ) ) {
+                    ctl = {
+                        xtype: 'rallyfieldvaluecombobox',
+                        prefix: Ext.util.Format.lowercase(schema),
+                        model: model_type,
+                        field: field_name,
+                        allowNoEntry: false
+                    };
+                } 
                 break;
             case 'DECIMAL':
             case 'INTEGER':
@@ -843,7 +864,16 @@ Ext.define('Rally.technicalservices.dialog.Filter',{
             margin: 5,
             listeners: {
                 scope: this,
-                change: this._validateFilters,
+                change: function(cb) {
+                    if ( cb.xtype == "rallyfieldvaluecombobox" ) {
+                        cb.displayValue = cb.getRecord().get("name");
+                    }
+                    
+                    if ( cb.xtype == "rallyusersearchcombobox" ) {
+                        cb.displayValue = cb.getRecord().get("_refObjectName");
+                    }
+                    this._validateFilters();
+                },
                 ready: function(cb){
                     if (value){
                         cb.setValue(value);
@@ -854,6 +884,10 @@ Ext.define('Rally.technicalservices.dialog.Filter',{
                         if (cb.xtype == "rallyusersearchcombobox") {
                             value = "/user/" + value;
                         }
+                        if ( cb.prefix && value > 0 ) {
+                            value = "/" + cb.prefix + "/" + value;
+                        }
+
                         cb.setValue(value);
                     }
                 }
@@ -1043,7 +1077,7 @@ Ext.define('CustomApp', {
             itemId:'filter_box',
             padding: 10, 
             margin: 10,
-            tpl:'<div class="ts-filter"><b>Applied Filters:</b><br><tpl for=".">{displayProperty} {operator} {value}<br></tpl></div>'},
+            tpl:'<div class="ts-filter"><b>Applied Filters:</b><br><tpl for=".">{displayProperty} {operator} {displayValue}<br></tpl></div>'},
         {xtype:'tsinfolink'}
     ],
     config: {
@@ -1120,7 +1154,7 @@ Ext.define('CustomApp', {
         
         Ext.each(data.items,function(rec){
             var oid = rec.get('ObjectID');
-            var trimmed_oid = oid.replace(/\/state\//,"");
+            var trimmed_oid = oid.replace(/\/state\//,"").replace(/\/preliminaryestimate\//,"");
             if ( oid !== trimmed_oid ) {
                 oid = parseInt(trimmed_oid,10);
             }
@@ -1135,7 +1169,7 @@ Ext.define('CustomApp', {
         var group = [];  
         Ext.each(data.items,function(rec){
             var oid = rec.get('ObjectID');
-            var trimmed_oid = oid.replace(/\/state\//,"");
+            var trimmed_oid = oid.replace(/\/state\//,"").replace(/\/preliminaryestimate\//,"");
             if ( oid !== trimmed_oid ) {
                 oid = parseInt(trimmed_oid,10);
             }
@@ -1149,7 +1183,7 @@ Ext.define('CustomApp', {
          var deferred = Ext.create('Deft.Deferred');
          this.logger.log('_fetchFields', cycleStateFields, this.modelNames);
          var allowed_attribute_types = ['STATE','STRING'];
-         var additional_filterable_fields = ['PlanEstimate','Owner'];
+         var additional_filterable_fields = ['PlanEstimate','Owner','PreliminaryEstimate'];
          var valid_fields = [];
          var filter_fields = [];
          
@@ -1167,6 +1201,8 @@ Ext.define('CustomApp', {
                  Ext.each(fields, function(f){
                      if (f.hidden === false && f.attributeDefinition){
                          var attr_def = f.attributeDefinition;
+                         //this.logger.log(attr_def.ElementName, attr_def.Constrained, attr_def.AttributeType);
+                         
                          if (!Ext.Array.contains(field_names, attr_def.ElementName)){
                              if (Ext.Array.contains(cycleStateFields,attr_def.ElementName)){
                                  valid_fields.push(f);
@@ -1178,7 +1214,7 @@ Ext.define('CustomApp', {
                              }
                          }
                      }
-                 });
+                 },this);
                  this.filterFields = _.uniq(filter_fields);  
                  this.cycleFields = _.uniq(valid_fields); 
                  deferred.resolve();
