@@ -3,7 +3,23 @@ Ext.override(Rally.ui.picker.FieldPicker, {
         var allowed_attribute_types = ['STATE','STRING'];
         if (field.attributeDefinition){
             var attr_def = field.attributeDefinition;
-            return (attr_def.Constrained && Ext.Array.contains(allowed_attribute_types, attr_def.AttributeType) && attr_def.ReadOnly == false)
+            //console.log(attr_def.ElementName, attr_def.AttributeType, attr_def);
+            
+            var can_use = false;
+            if ( attr_def.ElementName == "State" ) { 
+                can_use = true;
+            }
+
+            if ( attr_def.Constrained && Ext.Array.contains(allowed_attribute_types, attr_def.AttributeType) && attr_def.ReadOnly == false ) {
+                can_use = true;
+            }
+            
+            if ( attr_def.ElementName == "c_ProjectManager" ) {
+                 can_use = false;
+            }
+            
+            
+            return can_use
         }
         return false;
     }
@@ -64,5 +80,5 @@ Ext.override(Ext.data.proxy.Server, {
 
     applyEncoding: function(value) {
         return Ext.encode(value);
-    },
+    }
 });

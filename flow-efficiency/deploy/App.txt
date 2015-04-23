@@ -3,11 +3,11 @@
 <head>
     <title>Flow Efficiency</title>
     <!--  (c) 2014 Rally Software Development Corp.  All Rights Reserved. -->
-    <!--  Build Date: Thu Apr 23 2015 10:12:32 GMT-0600 (MDT) -->
+    <!--  Build Date: Thu Apr 23 2015 12:10:31 GMT-0600 (MDT) -->
     
     <script type="text/javascript">
-        var APP_BUILD_DATE = "Thu Apr 23 2015 10:12:32 GMT-0600 (MDT)";
-        var CHECKSUM = 72909778756;
+        var APP_BUILD_DATE = "Thu Apr 23 2015 12:10:31 GMT-0600 (MDT)";
+        var CHECKSUM = 72909778361;
     </script>
     
     <script type="text/javascript" src="/apps/2.0rc3/sdk.js"></script>

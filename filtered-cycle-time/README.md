@@ -3,6 +3,8 @@
 This app shows cycle time for the selected field and start and end values.  
 Eligible fields for cycle time calculations are state fields or any fields with drop down values.  
 
+When the app first runs, only schedule state may be available in the field dropdown.  In order to add more fields to the list in the app, they first need to be added to the configuration in the AppSettings.   
+
 ![ScreenShot](/images/filtered-cycle-time.png) 
 
 Selected Start value must be before the selected End value (in order).  Order is determined by the drop down
