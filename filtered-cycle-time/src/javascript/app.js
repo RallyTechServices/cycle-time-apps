@@ -720,8 +720,8 @@ Ext.define('CustomApp', {
             cycleStateFields = cycleStateFields_setting.split(',');
         }
         
-        console.log(settings.models, cycleStateFields);
-        if ( cycleStateFields.length === 0 ) {
+        this.logger.log("Settings models and fields:", settings.models, cycleStateFields);
+        if ( cycleStateFields.length === 0 || Ext.isEmpty( cycleStateFields[0] ) ) {
             cycleStateFields = ['ScheduleState'];
             if ( /PortfolioItem/.test(settings.models) ) {
                 cycleStateFields = ['State'];

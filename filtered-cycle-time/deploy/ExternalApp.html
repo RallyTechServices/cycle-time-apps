@@ -3,10 +3,10 @@
 <head>
     <title>Filtered Cycle Time</title>
     <!--  (c) 2014 Rally Software Development Corp.  All Rights Reserved. -->
-    <!--  Build Date: Wed Apr 22 2015 19:24:29 GMT-0700 (PDT) -->
+    <!--  Build Date: Wed Apr 22 2015 19:30:42 GMT-0700 (PDT) -->
     
     <script type="text/javascript">
-        var APP_BUILD_DATE = "Wed Apr 22 2015 19:24:29 GMT-0700 (PDT)";
+        var APP_BUILD_DATE = "Wed Apr 22 2015 19:30:42 GMT-0700 (PDT)";
         var CHECKSUM = [%= checksum %];
     </script>
     
@@ -1779,8 +1779,8 @@ Ext.define('CustomApp', {
             cycleStateFields = cycleStateFields_setting.split(',');
         }
         
-        console.log(settings.models, cycleStateFields);
-        if ( cycleStateFields.length === 0 ) {
+        this.logger.log("Settings models and fields:", settings.models, cycleStateFields);
+        if ( cycleStateFields.length === 0 || Ext.isEmpty( cycleStateFields[0] ) ) {
             cycleStateFields = ['ScheduleState'];
             if ( /PortfolioItem/.test(settings.models) ) {
                 cycleStateFields = ['State'];
