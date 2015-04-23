@@ -18,7 +18,7 @@ Ext.define('CustomApp', {
             itemId:'filter_box',
             padding: 10, 
             margin: 10,
-            tpl:'<div class="ts-filter"><b>Applied Filters:</b><br><tpl for=".">{displayProperty} {operator} {value}<br></tpl></div>'},
+            tpl:'<div class="ts-filter"><b>Applied Filters:</b><br><tpl for=".">{displayProperty} {operator} {displayValue}<br></tpl></div>'},
         {xtype:'tsinfolink'}
     ],
     config: {
@@ -95,7 +95,7 @@ Ext.define('CustomApp', {
         
         Ext.each(data.items,function(rec){
             var oid = rec.get('ObjectID');
-            var trimmed_oid = oid.replace(/\/state\//,"");
+            var trimmed_oid = oid.replace(/\/state\//,"").replace(/\/preliminaryestimate\//,"");
             if ( oid !== trimmed_oid ) {
                 oid = parseInt(trimmed_oid,10);
             }
@@ -110,7 +110,7 @@ Ext.define('CustomApp', {
         var group = [];  
         Ext.each(data.items,function(rec){
             var oid = rec.get('ObjectID');
-            var trimmed_oid = oid.replace(/\/state\//,"");
+            var trimmed_oid = oid.replace(/\/state\//,"").replace(/\/preliminaryestimate\//,"");
             if ( oid !== trimmed_oid ) {
                 oid = parseInt(trimmed_oid,10);
             }
@@ -124,7 +124,7 @@ Ext.define('CustomApp', {
          var deferred = Ext.create('Deft.Deferred');
          this.logger.log('_fetchFields', cycleStateFields, this.modelNames);
          var allowed_attribute_types = ['STATE','STRING'];
-         var additional_filterable_fields = ['PlanEstimate','Owner'];
+         var additional_filterable_fields = ['PlanEstimate','Owner','PreliminaryEstimate'];
          var valid_fields = [];
          var filter_fields = [];
          
@@ -142,6 +142,8 @@ Ext.define('CustomApp', {
                  Ext.each(fields, function(f){
                      if (f.hidden === false && f.attributeDefinition){
                          var attr_def = f.attributeDefinition;
+                         //this.logger.log(attr_def.ElementName, attr_def.Constrained, attr_def.AttributeType);
+                         
                          if (!Ext.Array.contains(field_names, attr_def.ElementName)){
                              if (Ext.Array.contains(cycleStateFields,attr_def.ElementName)){
                                  valid_fields.push(f);
@@ -153,7 +155,7 @@ Ext.define('CustomApp', {
                              }
                          }
                      }
-                 });
+                 },this);
                  this.filterFields = _.uniq(filter_fields);  
                  this.cycleFields = _.uniq(valid_fields); 
                  deferred.resolve();
@@ -718,8 +720,8 @@ Ext.define('CustomApp', {
             cycleStateFields = cycleStateFields_setting.split(',');
         }
         
-        console.log(settings.models, cycleStateFields);
-        if ( cycleStateFields.length === 0 ) {
+        this.logger.log("Settings models and fields:", settings.models, cycleStateFields);
+        if ( cycleStateFields.length === 0 || Ext.isEmpty( cycleStateFields[0] ) ) {
             cycleStateFields = ['ScheduleState'];
             if ( /PortfolioItem/.test(settings.models) ) {
                 cycleStateFields = ['State'];

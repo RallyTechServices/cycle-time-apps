@@ -9,10 +9,16 @@ Ext.override(Rally.ui.picker.FieldPicker, {
             if ( attr_def.ElementName == "State" ) { 
                 can_use = true;
             }
-            
+
             if ( attr_def.Constrained && Ext.Array.contains(allowed_attribute_types, attr_def.AttributeType) && attr_def.ReadOnly == false ) {
                 can_use = true;
             }
+            
+            if ( attr_def.ElementName == "c_ProjectManager" ) {
+                 can_use = false;
+            }
+            
+            
             return can_use
         }
         return false;
