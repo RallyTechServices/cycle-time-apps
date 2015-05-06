@@ -14,7 +14,9 @@ Ext.override(Rally.ui.picker.FieldPicker, {
                 can_use = true;
             }
             
-            if ( attr_def.ElementName == "c_ProjectManager" ) {
+            var forbidden_fields = ['c_ProjectManager','c_ImpactScore'];
+            
+            if ( Ext.Array.contains(forbidden_fields, attr_def.ElementName) ) {
                  can_use = false;
             }
             
