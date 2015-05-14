@@ -32,11 +32,11 @@ Ext.define("kickbacks-app", {
       this.setLoading(true);
        var field = this._getField(),
            find = {
-           "_TypeHierarchy": {$in: this._getArtifactType()},
+           "_TypeHierarchy": this._getArtifactType(),
            "_ValidTo": {$gte: Rally.util.DateTime.toIsoString(this._getFromDate())}
           },
           previousValueField = '_PreviousValues.' + field,
-          fetch =  ['FormattedID','Name',field, previousValueField, 'Owner','_ValidFrom','_ValidTo','_TypeHierarchy'];
+          fetch =  ['FormattedID','Name',field, previousValueField, 'Owner','_ValidFrom','_ValidTo','_UnformattedID'];
 
        if (this.getContext().getProjectScopeDown()){
            find["_ProjectHierarchy"] = this.getContext().getProject().ObjectID;
@@ -44,7 +44,7 @@ Ext.define("kickbacks-app", {
            find["Project"] = this.getContext().getProject().ObjectID;
        }
 
-       var hydrate = ["_TypeHierarchy","Owner"];
+       var hydrate = ["Owner"];
        if (field == 'ScheduleState'){
            hydrate.push(field);
        }
@@ -53,7 +53,8 @@ Ext.define("kickbacks-app", {
            findConfig: find,
            fetch: fetch,
            hydrate: hydrate,
-           removeUnauthorizedSnapshots: true
+           removeUnauthorizedSnapshots: true,
+           limit: 'Infinity'
        });
 
        kb_store.load({
@@ -63,6 +64,7 @@ Ext.define("kickbacks-app", {
    },
    _kickbackStoreLoaded: function(records, operation, success) {
        this.logger.log('_kickbackStoreLoaded',records,operation,success);
+
        this.setLoading(false);
        if (!success){
            var msg = 'Failed to load data';
@@ -73,22 +75,90 @@ Ext.define("kickbacks-app", {
            return;
        }
 
-       var calc = Ext.create('Rally.technicalservices.KickbackCalculator', {
-           kickbackField: this._getField(),
-           kickbackPrecedence: this._getFieldPrecedence(),
-           startDate: this._getFromDate(),
-           endDate: new Date()
+       var current = [],
+           all = [],
+           now = new Date();
+
+       _.each(records, function(r){
+           var obj_id = r.get('ObjectID');
+           if (!Ext.Array.contains(all, obj_id)){
+               all.push(obj_id);
+           }
+           var valid_to = Rally.util.DateTime.fromIsoString(r.get('_ValidTo'));
+           if (valid_to > now){
+               current.push(obj_id);
+           }
        });
 
-       var chart_data = calc.runCalculation(records);
-       this._addChart(chart_data);
-       this._addGrid(calc.kickBackDataExport);
-       //this.exportData = calc.export;
-   },
+        //get disappearances
+       this.setLoading('Loading current items...');
+
+        var disappearing_oids = _.difference(all, current);
+       console.log('disappearing',disappearing_oids, all, current);
+        this._findCurrentItems(_.clone(disappearing_oids)).then({
+            scope: this,
+            success: function(currentRecords) {
+                this.setLoading(false);
+                this.logger.log('_findCurrentItems', currentRecords);
+                var current_oids = _.map(currentRecords, function (r) {
+                    return r.get('ObjectID');
+                });
+                console.log('missing',missing_oids,disappearing_oids,current_oids);
+                var missing_oids = _.difference(disappearing_oids, current_oids);
+
+                var calc = Ext.create('Rally.technicalservices.KickbackCalculator', {
+                    missingOids: missing_oids,
+                    kickbackField: this._getField(),
+                    kickbackPrecedence: this._getFieldPrecedence(),
+                    startDate: this._getFromDate(),
+                    endDate: new Date()
+                });
+
+                var chart_data = calc.runCalculation(records);
+                this._addChart(chart_data);
+                this._addGrid(calc.kickBackDataExport);
+            },
+            failure: function(errorMsg){
+                this.setLoading(false);
+            }
+        });
+ },
+    _findCurrentItems: function(oids){
+        var deferred = Ext.create('Deft.Deferred');
+
+        var chunker = Ext.create('Rally.technicalservices.data.Chunker',{
+            fetch: ['ObjectID','FormattedID'],
+            find: {
+                __At: "current"
+            },
+            chunkField: "ObjectID",
+            chunkOids: oids
+        });
+
+        chunker.load().then({
+            scope: this,
+            success: function(data){
+                deferred.resolve(data);
+            },
+            failure: function(errorMsg){
+                deferred.reject(errorMsg);
+            }
+        });
+        return deferred;
+    },
     _addGrid: function(kickbackData){
+
         var store = Ext.create('Rally.data.custom.Store',{
             data: kickbackData,
             pageSize: kickbackData.length + 1
+        });
+
+        this.down('#display_box').add({
+            xtype: 'container',
+            itemId: 'ct-label',
+            style: { textAlign: 'right', color: 'gray'},
+            flex: 1,
+            html: '<i>' + kickbackData.length + ' kickbacks and deletions found.</i>'
         });
 
         this.down('#display_box').add({
@@ -96,21 +166,24 @@ Ext.define("kickbacks-app", {
             itemId: 'rally-grid',
             store: store,
             showPagingToolbar: false,
+            showRowActionsColumn: false,
             columnCfgs: [
                 {dataIndex:'formattedID', text:'Formatted ID'},
                 {dataIndex:'name', text:'Name', flex: 1},
-                {dataIndex: 'lastState', text: 'Last State'},
+                {dataIndex:'lastState', text: 'Last State'},
                 {dataIndex:'currentState', text:'Current State'},
                 {dataIndex:'date', text: 'Date', flex: 1},
                 {dataIndex:'deletion', text:'Deleted'}
             ]
         });
-
+       this.down('#bt-export').setDisabled(false);
     },
+
     _removeChart: function(){
         if (this.down('#rally-chart')){
             this.down('#rally-chart').destroy();
             this.down('#rally-grid').destroy();
+            this.down('#ct-label').destroy();
         }
     },
     _addChart: function(chartData){
@@ -130,15 +203,17 @@ Ext.define("kickbacks-app", {
         return _.map(allowedValues, function(av){return av.StringValue});
     },
     _getArtifactType: function(){
-        var types = this.down('#cb-artifact-type').getValue() || [];
-        if (!_.isArray(types)){
-            return [types];
-        }
-        return types;
+        return this.down('#cb-artifact-type').getValue() || '';
     },
     _getFromDate: function(){
         var monthsBack =  this.down('#cb-date-range').getValue();
         return Rally.util.DateTime.add(new Date(),"month",monthsBack);
+    },
+    _export: function(){
+        var grid = this.down('#rally-grid');
+        var csv = Rally.technicalservices.FileUtilities.getCSVFromGrid(grid);
+        Rally.technicalservices.FileUtilities.saveAs(csv, 'export.csv');
+
     },
     _addComponents: function(){
 
@@ -172,18 +247,7 @@ Ext.define("kickbacks-app", {
             storeConfig: {
                 model: 'TypeDefinition',
                 filters: Rally.data.wsapi.Filter.or(objTypeFilters),
-                autoLoad: true,
-                listeners: {
-                    load: function(store){
-                        var rec = store.findExactRecord('DisplayName','User Story/Defect');
-                        if (rec == null){
-                            store.add({
-                                TypePath: ['HierarchicalRequirement', 'Defect'],
-                                DisplayName: 'User Story/Defect'
-                            });
-                        }
-                    }
-                }
+                autoLoad: true
             },
             displayField: 'DisplayName',
             valueField: 'TypePath',
@@ -200,11 +264,12 @@ Ext.define("kickbacks-app", {
         });
     },
     _updateFieldPicker: function(cb){
-        var types = this._getArtifactType();
+        var type = this._getArtifactType();
 
         if (this.down('#cb-field')){
             this.down('#cb-field').destroy();
             this.down('#bt-update').destroy();
+            this.down('#bt-export').destroy();
         }
 
         this.down('#selector_box').add({
@@ -213,7 +278,7 @@ Ext.define("kickbacks-app", {
             margin: 10,
             fieldLabel: 'Field',
             labelAlign: 'right',
-            model: types[0]
+            model: type
         });
 
         this.down('#selector_box').add({
@@ -223,6 +288,16 @@ Ext.define("kickbacks-app", {
             text: 'Update',
             margin: 10,
             handler: this._updateApp
+        });
+
+        this.down('#selector_box').add({
+            xtype: 'rallybutton',
+            itemId: 'bt-export',
+            scope: this,
+            text: 'Export',
+            disabled: true,
+            margin: 10,
+            handler: this._export
         });
     }
 });

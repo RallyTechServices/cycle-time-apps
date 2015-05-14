@@ -96,8 +96,12 @@ Ext.define('Rally.technicalservices.DropdownFieldCombobox', {
     },
 
     _isNotHidden: function(field) {
-        console.log('field',field);
         var attributeTypes = ['STRING','STATE','RATING'];
+
+        //Only allow State field for portfolio item types
+        if (/portfolioitem/.test(field.modelType)){
+            return field.name == 'State';
+        }
 
         if (!field.hidden && !field.ReadOnly &&
             field.attributeDefinition && field.attributeDefinition.Constrained &&

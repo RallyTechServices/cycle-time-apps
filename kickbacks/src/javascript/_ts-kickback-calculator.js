@@ -7,6 +7,8 @@ Ext.define('Rally.technicalservices.KickbackCalculator', {
         endDate: null,
         granularity: "month",
         dateFormat: "M yyyy",
+        kickbackThreshholdInSeconds: 300,
+        missingOids: []
     },
 
     snapsByOid: {},
@@ -15,11 +17,13 @@ Ext.define('Rally.technicalservices.KickbackCalculator', {
         this.mergeConfig(config);
     },
     runCalculation: function(snapshots){
+        console.log('missingOids',this.missingOids);
 
         var snaps_by_oid = Rally.technicalservices.Toolbox.aggregateSnapsByOidForModel(snapshots);
         var date_buckets = Rally.technicalservices.Toolbox.getDateBuckets(this.startDate, this.endDate, this.granularity);
 
-        var kickBackData = [];
+        var kickBackData = [],
+            deletions = [];
 
         Ext.Object.each(snaps_by_oid, function(oid, snaps){
             var kbd = this._getKickbackData(snaps, this.kickbackField, this.kickbackPrecedence);
@@ -61,7 +65,6 @@ Ext.define('Rally.technicalservices.KickbackCalculator', {
         var seconds = null;
         var days = null;
         var include = false;
-        console.log('--');
 
         //First check for deletions
         var deletions = [];
@@ -72,31 +75,56 @@ Ext.define('Rally.technicalservices.KickbackCalculator', {
             deleteDate = null,
             deletedState = null,
             formattedID = lastSnap.FormattedID,
+            objectID = lastSnap.ObjectID,
             name = lastSnap.Name;
 
-        if (lastValidTo < new Date()) {
+        if (lastValidTo < new Date() && Ext.Array.contains(this.missingOids, objectID)) {
             deleteDate = lastValidTo;
             deletedState = lastSnap[field];
         }
 
+        var current_kickback = null;
         Ext.each(snaps, function (snap) {
             if (snap[field]) {
                 previous_state_index = state_index;
                 state_index = _.indexOf(precedence, snap[field]);
             }
 
+            var validFrom = Rally.util.DateTime.fromIsoString(snap._ValidFrom);
+
             if (previous_state_index > state_index) {
-                var validFrom = Rally.util.DateTime.fromIsoString(snap._ValidFrom);
-                kickbacks.push({
-                    date: validFrom,
-                    lastState: precedence[previous_state_index],
-                    currentState: snap[field]
-                })
+                //todo if current kickback exists, then we don't want t ostart the clock et
+                current_kickback = {
+                        date: validFrom,
+                        lastState: precedence[previous_state_index],
+                        lastStateIndex: previous_state_index,
+                        currentState: snap[field],
+                        currentStateIndex: state_index
+                    };
+                //kickbacks.push(_.clone(current_kickback));
+            } else {
+                if (current_kickback){
+                    if (Rally.util.DateTime.getDifference(validFrom, current_kickback.date,"second") > this.kickbackThreshholdInSeconds){
+                        kickbacks.push(_.clone(current_kickback));
+                        current_kickback = null;
+                    } else {
+                        if (state_index >= current_kickback.lastStateIndex){
+                            //this fell within the threshhold for the kickback, so throw it away
+                            current_kickback = null;
+                        }
+                    }
+                }
             }
         }, this);
 
+        //handle scenario where the kickback was the last snapshot
+        if (current_kickback){
+            kickbacks.push(current_kickback);
+        }
+
         if (kickbacks.length > 0 || deleteDate) {
             return {
+                objectID: objectID,
                 formattedID: formattedID,
                 name: name,
                 kickbacks: kickbacks,
