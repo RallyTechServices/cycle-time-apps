@@ -3,10 +3,10 @@
 <head>
     <title>Kickbacks and Deletions</title>
     <!--  (c) 2015 Rally Software Development Corp.  All Rights Reserved. -->
-    <!--  Build Date: Tue May 05 2015 21:33:40 GMT-0600 (MDT) -->
+    <!--  Build Date: Wed May 13 2015 18:19:49 GMT-0600 (MDT) -->
     
     <script type="text/javascript">
-        var APP_BUILD_DATE = "Tue May 05 2015 21:33:40 GMT-0600 (MDT)";
+        var APP_BUILD_DATE = "Wed May 13 2015 18:19:49 GMT-0600 (MDT)";
         var CHECKSUM = [%= checksum %];
     </script>
     
