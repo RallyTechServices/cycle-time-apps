@@ -10,7 +10,8 @@ Ext.define('CustomApp', {
     },
     items: [
         {xtype:'container',itemId:'settings_box'},
-        {xtype:'container',itemId:'selector_box', layout: {type: 'hbox'}},
+        {xtype: 'container', itemId: 'type_selector_box', layout: {type: 'hbox'}},
+        {xtype: 'container', itemId: 'value_selector_box', layout: {type: 'hbox'}},
         {xtype:'container',itemId:'button_box', layout: {type: 'hbox'}},
     //    {xtype:'container',itemId:'filter_box', layout: {type: 'vbox'}, title: 'Filter by', border: 1, style: {borderColor: 'gray', borderStyle: 'solid'}},
         {xtype:'container',itemId:'display_box'},
@@ -57,34 +58,102 @@ Ext.define('CustomApp', {
             this.onSettingsUpdate(this.getSettings());  //(this.config.type,this.config.pageSize,this.config.fetch,this.config.columns);
         }        
     },
-    _initializeApp: function(validFields){
-       var field_store = Ext.create('Rally.data.custom.Store', {
-            data: validFields,
-            autoLoad: true
-        });
+    _getValidFields: function(type){
+        var cycleStateFields = [],
+            defaultFields = ['ScheduleState'];
 
-        this.logger.log('_initializeApp', validFields);
-        
-        var cb = this.down('#selector_box').add({
+        if (type) {
+            this.modelNames = type.split(',');
+            this.logger.log('_getValidFields',type,this.modelNames,settings_types);
+
+
+            if (Ext.Array.contains(this.modelNames, 'PortfolioItem')){
+                cycleStateFields = this.getSetting('portfolioItemCycleStateFields');
+                defaultFields = ['State'];
+            } else {
+                //Story/Defect fields
+                cycleStateFields = this.getSetting('storyDefectCycleStateFields');
+            }
+
+            if (! Ext.isArray(cycleStateFields) ){
+                cycleStateFields = cycleStateFields.split(',');
+            }
+            this.logger.log("Settings models and fields:", settings_types, cycleStateFields);
+            if ( cycleStateFields.length === 0 || Ext.isEmpty( cycleStateFields[0] ) ) {
+                cycleStateFields = defaultFields;
+            }
+
+            this._fetchFields(cycleStateFields).then({
+                scope: this,
+                success: function(){
+                    this.logger.log('Valid fields for cycle and filter time', this.cycleFields, this.filterFields);
+                    this._addFieldPicker(this.cycleFields);
+                }
+            });
+        }
+    },
+    _addFieldPicker: function(validFields){
+
+            if (this.down('#cb-field')) {
+                this.down('#cb-field').destroy();
+            }
+
+        var field_store = Ext.create('Rally.data.custom.Store', {
+                data: validFields,
+                autoLoad: true
+            });
+
+            this.down('#type_selector_box').add({
+
+                xtype: 'rallycombobox',
+                itemId: 'cb-field',
+                store: field_store,
+                valueField: 'name',
+                displayField: 'displayName',
+                fieldLabel: 'Field',
+                labelAlign: 'right',
+                labelWidth: 65,
+                queryMode: 'local',
+                allowNoEntry: false,
+                margin: 10,
+                scope: this,
+                listeners: {
+                    scope: this,
+                    select: this._updateDropdowns,
+                    ready: function (cb) {
+                        this._updateDropdowns(cb);
+                    }
+                }
+            });
+    },
+    _addTypePicker: function(type){
+
+        this.down('#type_selector_box').add({
             xtype: 'rallycombobox',
-            itemId: 'cb-field',
-            store: field_store, 
-            valueField: 'name',
-            displayField: 'displayName',
-            fieldLabel:  'Field',
+            autoExpand: true,
+            storeConfig: {
+                model:'TypeDefinition',
+                filters: [{property:'TypePath',operator:'contains',value:'PortfolioItem/'}],
+                autoLoad: true
+            },
+            displayField: 'DisplayName',
+            valueField: 'TypePath',
+            fieldLabel:  'Type',
             labelAlign: 'right',
-            labelWidth: 50,
-            queryMode: 'local',
-            allowNoEntry: false, 
+            minWidth: 250,
+            labelWidth: 65,
             margin: 10,
-            scope: this,
             listeners: {
                 scope: this,
-                select: this._updateDropdowns,
-                ready: function(cb){
-                  //  console.log(this.defaultField);
-                  //  cb.setValue(this.defaultField);
-                    this._updateDropdowns(cb);
+                ready: function(cb) {
+                    this._addArtifactToChoices(cb.getStore());
+                    if (type){
+                        cb.setValue(type);
+                    }
+                    this._getValidFields(cb.getValue());
+                },
+                select: function(cb){
+                    this._getValidFields(cb.getValue());
                 }
             }
         });
@@ -198,7 +267,7 @@ Ext.define('CustomApp', {
         if (cb.getRecord()){
             var model = cb.getRecord().get('modelType');
             
-            this.down('#selector_box').add({
+            this.down('#type_selector_box').add({
                 xtype: 'rallyfieldvaluecombobox',
                 itemId: 'cb-from-state',
                 model: model,
@@ -207,25 +276,26 @@ Ext.define('CustomApp', {
                 allowNoEntry: false,
                 fieldLabel:  'Start',
                 labelAlign: 'right',
-                labelWidth: 30,
+                width: 200,
+                labelWidth: 50,
                 margin: 10
             });
             
-            this.down('#selector_box').add({
+            this.down('#type_selector_box').add({
                 xtype: 'rallyfieldvaluecombobox',
                 itemId: 'cb-to-state',
                 model: model,
                 field: field,
                 fieldLabel:  'End',
                 labelAlign: 'right',
-                labelWidth: 30,
+                labelWidth: 50,
                 margin: 10
             });
             
             var granularity_store = Ext.create('Rally.data.custom.Store', {
                 data: this.granularityStore
             });
-            this.down('#selector_box').add({
+            this.down('#value_selector_box').add({
                 xtype: 'rallycombobox',
                 itemId: 'cb-granularity',
                 store: granularity_store,
@@ -233,6 +303,7 @@ Ext.define('CustomApp', {
                 valueField: 'value',
                 fieldLabel:  'Granularity',
                 labelAlign: 'right',
+                width: 200,
                 labelWidth: 65,
                 margin: 10
             });
@@ -241,7 +312,7 @@ Ext.define('CustomApp', {
                 data: this.dateRangeStore
             });
 
-            this.down('#selector_box').add({
+            this.down('#value_selector_box').add({
                 xtype: 'rallycombobox',
                 itemId: 'cb-date-range',
                 store: date_store,
@@ -256,32 +327,32 @@ Ext.define('CustomApp', {
             });
             
             var button_width = 75; 
-            this.down('#button_box').add({
+            this.down('#value_selector_box').add({
                 xtype: 'rallybutton',
                 itemId: 'btn-update',
                 text: 'Update',
                 scope: this,
                 width: button_width,
-                margin: '5 5 5 65',
+                margin: '10 5 5 25',
                 handler: this._createChart
             });
             
-            this.down('#button_box').add({
+            this.down('#value_selector_box').add({
                 xtype: 'rallybutton',
                 itemId: 'btn-filter',
                 scope: this,
                 text: 'Filter',
                 width: button_width,
-                margin: 5,
+                margin: '10 5 5 5',
                 handler: this._filter
             });
-            this.down('#button_box').add({
+            this.down('#value_selector_box').add({
                 xtype: 'rallybutton',
                 itemId: 'btn-export',
                 scope: this,
                 text: 'Export',
                 width: button_width,
-                margin: 5,
+                margin: '10 5 5 5',
                 handler: this._export
             });
         }
@@ -587,95 +658,46 @@ Ext.define('CustomApp', {
     getSettingsFields: function() {
         var me = this;
         
-        return [
-            {
-                name: 'models',
-                xtype: 'rallycombobox',
-                autoExpand: true,
+        return [{
+                name: 'portfolioItemCycleStateFields',
+                itemId: 'portfoliofields_box',
+                xtype: 'rallyfieldpicker',
+                modelTypes: ['PortfolioItem'],
+                labelWidth: 225,
+                fieldLabel: 'Valid Portfolio Item Cycle States',
+                labelAlign: 'right',
+                minWidth: 450,
+                margin: '10 0 10 10',
+                autoExpand: false,
+                alwaysExpanded: false,
                 storeConfig: {
-                    model:'TypeDefinition',
-                    filters: [ {property:'TypePath',operator:'contains',value:'PortfolioItem/'}]
+                    context: {project: null}
                 },
-                displayField: 'DisplayName',
-                valueField: 'TypePath',
-                fieldLabel:  'Record Type',
-                labelAlign: 'left',
-                minWidth: 400,
-                labelWidth: 100,
-                margin: 10,
                 listeners: {
-                    ready: function(cb) {
-                        me._addArtifactToChoices(cb.getStore());
-                        
-                        var type = cb.getValue();
-                        if ( type && Ext.isString(type) ) {
-                            var models = type.split(',');
-                            var field_box = this.ownerCt.down('#fields_box');
-                            field_box.destroy();
-                            
-                            var field_picker = this.ownerCt.add({
-                                name: 'cycleStateFields',
-                                itemId: 'fields_box',
-                                xtype: 'rallyfieldpicker',
-                                modelTypes: models,
-                                labelWidth: 100,
-                                fieldLabel: 'Valid Cycle States',
-                                labelAlign: 'left',
-                                minWidth: 400,
-                                margin: '10 0 250 10',
-                                autoExpand: false,
-                                alwaysExpanded: false,
-                                storeConfig: {
-                                    context: {project: null}
-                                }
-                            });
-                            
-                            if (/PortfolioItem/.test(type)) {
-                                field_picker.setValue(['State']);
-                            } else {
-                                field_picker.setValue(['ScheduleState']);
-                            }
-                        }
-                        
-                    },
-                    select: function(cb) {
-                        var type = cb.getValue();
-                        if ( type && Ext.isString(type) ) {
-                            var models = type.split(',');
-                            var field_box = this.ownerCt.down('#fields_box');
-                            field_box.destroy();
-                            
-                            var field_picker = this.ownerCt.add({
-                                name: 'cycleStateFields',
-                                itemId: 'fields_box',
-                                xtype: 'rallyfieldpicker',
-                                modelTypes: models,
-                                labelWidth: 100,
-                                fieldLabel: 'Valid Cycle States',
-                                labelAlign: 'left',
-                                minWidth: 400,
-                                margin: '10 0 250 10',
-                                autoExpand: false,
-                                alwaysExpanded: false,
-                                storeConfig: {
-                                    context: {project: null}
-                                }
-                            });
-                            
-                            if (/PortfolioItem/.test(type)) {
-                                field_picker.setValue(['State']);
-                            } else {
-                                field_picker.setValue(['ScheduleState']);
-                            }
-                        }
+                    ready: function (cb) {
+                        cb.setValue(['State']);
                     }
+                }
+            },{
+                name: 'storyDefectCycleStateFields',
+                itemId: 'storyfields_box',
+                xtype: 'rallyfieldpicker',
+                modelTypes: ['HierarchicalRequirement','Defect'],
+                labelWidth: 225,
+                fieldLabel: 'Valid User Story/Defect Cycle States',
+                labelAlign: 'right',
+                minWidth: 450,
+                margin: '10 0 250 10',
+                autoExpand: false,
+                alwaysExpanded: false,
+                storeConfig: {
+                    context: {project: null}
                 },
-                readyEvent: 'ready'
-            },
-            {
-                name: 'cycleStateFields',
-                itemId: 'fields_box',
-                xtype: 'container'
+                listeners: {
+                    ready: function (cb) {
+                        cb.setValue(['ScheduleState']);
+                    }
+                }
             }
         ];
     },
@@ -710,37 +732,7 @@ Ext.define('CustomApp', {
         this._hideSettings();
         this.onSettingsUpdate(settings);
     },
-    //onSettingsUpdate:  Override
     onSettingsUpdate: function (settings){
-        //Build and save column settings...this means that we need to get the display names and multi-list
-        var cycleStateFields_setting = this.getSetting('cycleStateFields');
-        var cycleStateFields = cycleStateFields_setting;
-        
-        if (! Ext.isArray(cycleStateFields_setting) ){
-            cycleStateFields = cycleStateFields_setting.split(',');
-        }
-        
-        this.logger.log("Settings models and fields:", settings.models, cycleStateFields);
-        if ( cycleStateFields.length === 0 || Ext.isEmpty( cycleStateFields[0] ) ) {
-            cycleStateFields = ['ScheduleState'];
-            if ( /PortfolioItem/.test(settings.models) ) {
-                cycleStateFields = ['State'];
-            }
-        }
-        
-        if ( settings.models && Ext.isString(settings.models) ) {
-            settings.modelNames = settings.models.split(',');
-        }
-        this.logger.log('onSettingsUpdate',settings, cycleStateFields);
-        Ext.apply(this, settings);
-        
-        this._fetchFields(cycleStateFields).then({
-            scope: this,
-            success: function(){
-                this.logger.log('Valid fields for cycle and filter time', this.cycleFields, this.filterFields); 
-                this._initializeApp(this.cycleFields);
-            }
-        });
-
+        this._addTypePicker();
     }
 });
