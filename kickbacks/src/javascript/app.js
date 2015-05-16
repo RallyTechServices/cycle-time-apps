@@ -4,6 +4,7 @@ Ext.define("kickbacks-app", {
     logger: new Rally.technicalservices.Logger(),
     defaults: { margin: 10 },
     items: [
+        {xtype:'container',itemId:'settings_box'},
         {xtype:'container',itemId:'message_box',tpl:'Hello, <tpl>{_refObjectName}</tpl>'},
         {xtype:'container',itemId:'selector_box', layout: {type: 'hbox'}},
         {xtype:'container',itemId:'display_box'},
@@ -19,9 +20,17 @@ Ext.define("kickbacks-app", {
     ],
 
     defaultDateRange: -3,
-
+    config: {
+        defaultSettings: {
+            threshhold:  300
+        }
+    },
    launch: function() {
-        this._addComponents();
+       if (this.isExternal()){
+           this.showSettings(this.config);
+       } else {
+           this.onSettingsUpdate(this.getSettings());  //(this.config.type,this.config.pageSize,this.config.fetch,this.config.columns);
+       }
    },
     _updateApp: function(){
 
@@ -94,7 +103,6 @@ Ext.define("kickbacks-app", {
        this.setLoading('Loading current items...');
 
         var disappearing_oids = _.difference(all, current);
-       console.log('disappearing',disappearing_oids, all, current);
         this._findCurrentItems(_.clone(disappearing_oids)).then({
             scope: this,
             success: function(currentRecords) {
@@ -103,7 +111,6 @@ Ext.define("kickbacks-app", {
                 var current_oids = _.map(currentRecords, function (r) {
                     return r.get('ObjectID');
                 });
-                console.log('missing',missing_oids,disappearing_oids,current_oids);
                 var missing_oids = _.difference(disappearing_oids, current_oids);
 
                 var calc = Ext.create('Rally.technicalservices.KickbackCalculator', {
@@ -111,9 +118,9 @@ Ext.define("kickbacks-app", {
                     kickbackField: this._getField(),
                     kickbackPrecedence: this._getFieldPrecedence(),
                     startDate: this._getFromDate(),
-                    endDate: new Date()
+                    endDate: new Date(),
+                    kickbackThreshholdInSeconds: this.threshhold
                 });
-
                 var chart_data = calc.runCalculation(records);
                 this._addChart(chart_data);
                 this._addGrid(calc.kickBackDataExport);
@@ -299,5 +306,61 @@ Ext.define("kickbacks-app", {
             margin: 10,
             handler: this._export
         });
+    },
+    /********************************************
+     /* Overrides for App class
+     /*
+     /********************************************/
+    //getSettingsFields:  Override for App
+    getSettingsFields: function() {
+        var me = this;
+
+        return [
+            {
+                name: 'threshhold',
+                xtype: 'rallynumberfield',
+                fieldLabel: 'Kickback threshold (seconds)',
+                labelWidth: 200,
+                labelAlign: 'right',
+                minValue: 0
+            }
+        ];
+    },
+    isExternal: function(){
+        return typeof(this.getAppId()) == 'undefined';
+    },
+    //showSettings:  Override
+    showSettings: function(options) {
+        this._appSettings = Ext.create('Rally.app.AppSettings', Ext.apply({
+            fields: this.getSettingsFields(),
+            settings: this.getSettings(),
+            defaultSettings: this.getDefaultSettings(),
+            context: this.getContext(),
+            settingsScope: this.settingsScope,
+            autoScroll: true
+        }, options));
+
+        this._appSettings.on('cancel', this._hideSettings, this);
+        this._appSettings.on('save', this._onSettingsSaved, this);
+        if (this.isExternal()){
+            if (this.down('#settings_box').getComponent(this._appSettings.id)==undefined){
+                this.down('#settings_box').add(this._appSettings);
+            }
+        } else {
+            this.hide();
+            this.up().add(this._appSettings);
+        }
+        return this._appSettings;
+    },
+    _onSettingsSaved: function(settings){
+        Ext.apply(this.settings, settings);
+        this._hideSettings();
+        this.onSettingsUpdate(settings);
+    },
+    //onSettingsUpdate:  Override
+    onSettingsUpdate: function (settings){
+        this.logger.log('onSettingsUpdate',settings);
+        Ext.apply(this, settings);
+        this._addComponents();
     }
 });
