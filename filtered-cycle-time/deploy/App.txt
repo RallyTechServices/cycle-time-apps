@@ -3,11 +3,11 @@
 <head>
     <title>Filtered Cycle Time</title>
     <!--  (c) 2014 Rally Software Development Corp.  All Rights Reserved. -->
-    <!--  Build Date: Fri May 15 2015 22:38:48 GMT-0600 (MDT) -->
+    <!--  Build Date: Fri May 15 2015 23:10:23 GMT-0600 (MDT) -->
     
     <script type="text/javascript">
-        var APP_BUILD_DATE = "Fri May 15 2015 22:38:48 GMT-0600 (MDT)";
-        var CHECKSUM = 72379047851;
+        var APP_BUILD_DATE = "Fri May 15 2015 23:10:23 GMT-0600 (MDT)";
+        var CHECKSUM = 72806624780;
     </script>
     
     <script type="text/javascript" src="/apps/2.0rc3/sdk.js"></script>
@@ -1126,19 +1126,20 @@ Ext.define('CustomApp', {
             this.logger.log('_getValidFields',type,this.modelNames);
 
 
-            if (Ext.Array.contains(this.modelNames, 'PortfolioItem')){
+            if (/PortfolioItem/.test(this.modelNames[0])){
                 cycleStateFields = this.getSetting('portfolioItemCycleStateFields');
                 defaultFields = ['State'];
             } else {
                 //Story/Defect fields
                 cycleStateFields = this.getSetting('storyDefectCycleStateFields');
             }
-
-            if (! Ext.isArray(cycleStateFields) ){
+            this.logger.log('cycleStateFields',cycleStateFields);
+            if (cycleStateFields && !Ext.isArray(cycleStateFields) ){
                 cycleStateFields = cycleStateFields.split(',');
             }
-            this.logger.log("Settings models and fields:", settings_types, cycleStateFields);
-            if ( cycleStateFields.length === 0 || Ext.isEmpty( cycleStateFields[0] ) ) {
+
+            this.logger.log("Settings fields:", cycleStateFields);
+            if (!cycleStateFields || cycleStateFields.length === 0 || Ext.isEmpty( cycleStateFields[0] ) ) {
                 cycleStateFields = defaultFields;
             }
 
@@ -1727,7 +1728,7 @@ Ext.define('CustomApp', {
                 labelAlign: 'right',
                 minWidth: 450,
                 margin: '10 0 10 10',
-                autoExpand: false,
+                autoExpand: true,
                 alwaysExpanded: false,
                 storeConfig: {
                     context: {project: null}
@@ -1735,8 +1736,10 @@ Ext.define('CustomApp', {
                 listeners: {
                     ready: function (cb) {
                         cb.setValue(['State']);
+                        cb.collapse();
                     }
-                }
+                },
+                readyEvent: 'ready'
             },{
                 name: 'storyDefectCycleStateFields',
                 itemId: 'storyfields_box',
@@ -1747,7 +1750,7 @@ Ext.define('CustomApp', {
                 labelAlign: 'right',
                 minWidth: 450,
                 margin: '10 0 250 10',
-                autoExpand: false,
+                autoExpand: true,
                 alwaysExpanded: false,
                 storeConfig: {
                     context: {project: null}
@@ -1755,8 +1758,10 @@ Ext.define('CustomApp', {
                 listeners: {
                     ready: function (cb) {
                         cb.setValue(['ScheduleState']);
+                        cb.collapse();
                     }
-                }
+                },
+                readyEvent: 'ready'
             }
         ];
     },

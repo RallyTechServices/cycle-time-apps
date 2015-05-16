@@ -67,19 +67,20 @@ Ext.define('CustomApp', {
             this.logger.log('_getValidFields',type,this.modelNames);
 
 
-            if (Ext.Array.contains(this.modelNames, 'PortfolioItem')){
+            if (/PortfolioItem/.test(this.modelNames[0])){
                 cycleStateFields = this.getSetting('portfolioItemCycleStateFields');
                 defaultFields = ['State'];
             } else {
                 //Story/Defect fields
                 cycleStateFields = this.getSetting('storyDefectCycleStateFields');
             }
-
-            if (! Ext.isArray(cycleStateFields) ){
+            this.logger.log('cycleStateFields',cycleStateFields);
+            if (cycleStateFields && !Ext.isArray(cycleStateFields) ){
                 cycleStateFields = cycleStateFields.split(',');
             }
-            this.logger.log("Settings models and fields:", settings_types, cycleStateFields);
-            if ( cycleStateFields.length === 0 || Ext.isEmpty( cycleStateFields[0] ) ) {
+
+            this.logger.log("Settings fields:", cycleStateFields);
+            if (!cycleStateFields || cycleStateFields.length === 0 || Ext.isEmpty( cycleStateFields[0] ) ) {
                 cycleStateFields = defaultFields;
             }
 
@@ -668,7 +669,7 @@ Ext.define('CustomApp', {
                 labelAlign: 'right',
                 minWidth: 450,
                 margin: '10 0 10 10',
-                autoExpand: false,
+                autoExpand: true,
                 alwaysExpanded: false,
                 storeConfig: {
                     context: {project: null}
@@ -676,8 +677,10 @@ Ext.define('CustomApp', {
                 listeners: {
                     ready: function (cb) {
                         cb.setValue(['State']);
+                        cb.collapse();
                     }
-                }
+                },
+                readyEvent: 'ready'
             },{
                 name: 'storyDefectCycleStateFields',
                 itemId: 'storyfields_box',
@@ -688,7 +691,7 @@ Ext.define('CustomApp', {
                 labelAlign: 'right',
                 minWidth: 450,
                 margin: '10 0 250 10',
-                autoExpand: false,
+                autoExpand: true,
                 alwaysExpanded: false,
                 storeConfig: {
                     context: {project: null}
@@ -696,8 +699,10 @@ Ext.define('CustomApp', {
                 listeners: {
                     ready: function (cb) {
                         cb.setValue(['ScheduleState']);
+                        cb.collapse();
                     }
-                }
+                },
+                readyEvent: 'ready'
             }
         ];
     },
