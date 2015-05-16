@@ -17,7 +17,6 @@ Ext.define('Rally.technicalservices.KickbackCalculator', {
         this.mergeConfig(config);
     },
     runCalculation: function(snapshots){
-        console.log('missingOids',this.missingOids);
 
         var snaps_by_oid = Rally.technicalservices.Toolbox.aggregateSnapsByOidForModel(snapshots);
         var date_buckets = Rally.technicalservices.Toolbox.getDateBuckets(this.startDate, this.endDate, this.granularity);
@@ -93,7 +92,7 @@ Ext.define('Rally.technicalservices.KickbackCalculator', {
             var validFrom = Rally.util.DateTime.fromIsoString(snap._ValidFrom);
 
             if (previous_state_index > state_index) {
-                //todo if current kickback exists, then we don't want t ostart the clock et
+                //todo if current kickback exists, then we don't want to start the clock et
                 current_kickback = {
                         date: validFrom,
                         lastState: precedence[previous_state_index],
