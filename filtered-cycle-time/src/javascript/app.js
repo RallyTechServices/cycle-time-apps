@@ -64,7 +64,7 @@ Ext.define('CustomApp', {
 
         if (type) {
             this.modelNames = type.split(',');
-            this.logger.log('_getValidFields',type,this.modelNames,settings_types);
+            this.logger.log('_getValidFields',type,this.modelNames);
 
 
             if (Ext.Array.contains(this.modelNames, 'PortfolioItem')){

@@ -3,11 +3,11 @@
 <head>
     <title>Filtered Cycle Time</title>
     <!--  (c) 2014 Rally Software Development Corp.  All Rights Reserved. -->
-    <!--  Build Date: Fri May 15 2015 22:28:53 GMT-0600 (MDT) -->
+    <!--  Build Date: Fri May 15 2015 22:38:48 GMT-0600 (MDT) -->
     
     <script type="text/javascript">
-        var APP_BUILD_DATE = "Fri May 15 2015 22:28:53 GMT-0600 (MDT)";
-        var CHECKSUM = 72438292380;
+        var APP_BUILD_DATE = "Fri May 15 2015 22:38:48 GMT-0600 (MDT)";
+        var CHECKSUM = 72379047851;
     </script>
     
     <script type="text/javascript" src="/apps/2.0rc3/sdk.js"></script>
@@ -1123,7 +1123,7 @@ Ext.define('CustomApp', {
 
         if (type) {
             this.modelNames = type.split(',');
-            this.logger.log('_getValidFields',type,this.modelNames,settings_types);
+            this.logger.log('_getValidFields',type,this.modelNames);
 
 
             if (Ext.Array.contains(this.modelNames, 'PortfolioItem')){
