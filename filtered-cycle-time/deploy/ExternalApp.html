@@ -3,10 +3,10 @@
 <head>
     <title>Filtered Cycle Time</title>
     <!--  (c) 2014 Rally Software Development Corp.  All Rights Reserved. -->
-    <!--  Build Date: Thu May 14 2015 10:29:06 GMT-0600 (MDT) -->
+    <!--  Build Date: Fri May 15 2015 22:28:54 GMT-0600 (MDT) -->
     
     <script type="text/javascript">
-        var APP_BUILD_DATE = "Thu May 14 2015 10:29:06 GMT-0600 (MDT)";
+        var APP_BUILD_DATE = "Fri May 15 2015 22:28:54 GMT-0600 (MDT)";
         var CHECKSUM = [%= checksum %];
     </script>
     
@@ -1118,27 +1118,28 @@ Ext.define('CustomApp', {
         }        
     },
     _getValidFields: function(type){
-        var settings_types = this.getSetting('modelNames'),
-            cycleStateFields = [];
+        var cycleStateFields = [],
+            defaultFields = ['ScheduleState'];
 
         if (type) {
-        this.modelNames = type.split(',');
-        this.logger.log('_getValidFields',type,this.modelNames,settings_types);
+            this.modelNames = type.split(',');
+            this.logger.log('_getValidFields',type,this.modelNames,settings_types);
 
-        if (type == settings_types || this.modelNames == settings_types){
-            var cycleStateFields_setting = this.getSetting('cycleStateFields');
-            cycleStateFields = cycleStateFields_setting;
 
-            if (! Ext.isArray(cycleStateFields_setting) ){
-                cycleStateFields = cycleStateFields_setting.split(',');
+            if (Ext.Array.contains(this.modelNames, 'PortfolioItem')){
+                cycleStateFields = this.getSetting('portfolioItemCycleStateFields');
+                defaultFields = ['State'];
+            } else {
+                //Story/Defect fields
+                cycleStateFields = this.getSetting('storyDefectCycleStateFields');
             }
 
+            if (! Ext.isArray(cycleStateFields) ){
+                cycleStateFields = cycleStateFields.split(',');
+            }
             this.logger.log("Settings models and fields:", settings_types, cycleStateFields);
             if ( cycleStateFields.length === 0 || Ext.isEmpty( cycleStateFields[0] ) ) {
-                cycleStateFields = ['ScheduleState'];
-                if ( /PortfolioItem/.test(settings_types) ) {
-                    cycleStateFields = ['State'];
-                }
+                cycleStateFields = defaultFields;
             }
 
             this._fetchFields(cycleStateFields).then({
@@ -1148,62 +1149,7 @@ Ext.define('CustomApp', {
                     this._addFieldPicker(this.cycleFields);
                 }
             });
-
-        } else {
-            this._fetchDefaultFields(this.modelNames).then({
-                scope: this,
-                success: function(fields){
-                    this.logger.log('Valid fields for cycle and filter time', this.cycleFields, this.filterFields);
-                    this._addFieldPicker(this.cycleFields);
-                }
-            });
         }
-        }
-    },
-    _fetchDefaultFields: function(type){
-        var deferred = Ext.create('Deft.Deferred');
-        this.logger.log('_fetchDefaultFields', type);
-        var allowed_attribute_types = ['STATE','STRING'];
-        var additional_filterable_fields = ['PlanEstimate','Owner','PreliminaryEstimate'];
-        var valid_fields = [];
-        var filter_fields = [];
-
-        var promises = [];
-        Ext.Array.each( type , function(model_name) {
-            promises.push(this._fetchModelFields(model_name));
-        },this);
-
-        Deft.Promise.all(promises).then({
-            scope: this,
-            success: function(fields){
-                fields = _.flatten(fields);
-                this.logger.log('_fetchDefaultFields success', fields);
-                var field_names = [];
-                Ext.each(fields, function(f){
-                    if (f.hidden === false && f.attributeDefinition){
-                        var attr_def = f.attributeDefinition;
-                        //this.logger.log(attr_def.ElementName, attr_def.Constrained, attr_def.AttributeType);
-                        console.log('fields',attr_def.ElementName, attr_def);
-                        if (!Ext.Array.contains(field_names, attr_def.ElementName)){
-                            if (attr_def.ElementName == 'State'){
-                                valid_fields.push(f);
-                            } else if (attr_def.Constrained && Ext.Array.contains(allowed_attribute_types, attr_def.AttributeType) && attr_def.ReadOnly == false){
-                                valid_fields.push(f);
-                            }
-                            if (Ext.Array.contains(additional_filterable_fields, attr_def.ElementName) ||
-                                (attr_def.Constrained && Ext.Array.contains(allowed_attribute_types, attr_def.AttributeType) && attr_def.ReadOnly == false)){
-                                field_names.push(attr_def.ElementName);
-                                filter_fields.push(f);
-                            }
-                        }
-                    }
-                },this);
-                this.filterFields = _.uniq(filter_fields);
-                this.cycleFields = _.uniq(valid_fields);
-                deferred.resolve();
-            }
-        });
-        return deferred;
     },
     _addFieldPicker: function(validFields){
 
@@ -1234,8 +1180,6 @@ Ext.define('CustomApp', {
                     scope: this,
                     select: this._updateDropdowns,
                     ready: function (cb) {
-                        //  console.log(this.defaultField);
-                        //  cb.setValue(this.defaultField);
                         this._updateDropdowns(cb);
                     }
                 }
@@ -1255,7 +1199,7 @@ Ext.define('CustomApp', {
             valueField: 'TypePath',
             fieldLabel:  'Type',
             labelAlign: 'right',
-            minWidth: 200,
+            minWidth: 250,
             labelWidth: 65,
             margin: 10,
             listeners: {
@@ -1773,95 +1717,46 @@ Ext.define('CustomApp', {
     getSettingsFields: function() {
         var me = this;
         
-        return [
-            {
-                name: 'models',
-                xtype: 'rallycombobox',
-                autoExpand: true,
+        return [{
+                name: 'portfolioItemCycleStateFields',
+                itemId: 'portfoliofields_box',
+                xtype: 'rallyfieldpicker',
+                modelTypes: ['PortfolioItem'],
+                labelWidth: 225,
+                fieldLabel: 'Valid Portfolio Item Cycle States',
+                labelAlign: 'right',
+                minWidth: 450,
+                margin: '10 0 10 10',
+                autoExpand: false,
+                alwaysExpanded: false,
                 storeConfig: {
-                    model:'TypeDefinition',
-                    filters: [ {property:'TypePath',operator:'contains',value:'PortfolioItem/'}]
+                    context: {project: null}
                 },
-                displayField: 'DisplayName',
-                valueField: 'TypePath',
-                fieldLabel:  'Record Type',
-                labelAlign: 'left',
-                minWidth: 400,
-                labelWidth: 100,
-                margin: 10,
                 listeners: {
-                    ready: function(cb) {
-                        me._addArtifactToChoices(cb.getStore());
-                        
-                        var type = cb.getValue();
-                        if ( type && Ext.isString(type) ) {
-                            var models = type.split(',');
-                            var field_box = this.ownerCt.down('#fields_box');
-                            field_box.destroy();
-                            
-                            var field_picker = this.ownerCt.add({
-                                name: 'cycleStateFields',
-                                itemId: 'fields_box',
-                                xtype: 'rallyfieldpicker',
-                                modelTypes: models,
-                                labelWidth: 100,
-                                fieldLabel: 'Valid Cycle States',
-                                labelAlign: 'left',
-                                minWidth: 400,
-                                margin: '10 0 250 10',
-                                autoExpand: false,
-                                alwaysExpanded: false,
-                                storeConfig: {
-                                    context: {project: null}
-                                }
-                            });
-                            
-                            if (/PortfolioItem/.test(type)) {
-                                field_picker.setValue(['State']);
-                            } else {
-                                field_picker.setValue(['ScheduleState']);
-                            }
-                        }
-                        
-                    },
-                    select: function(cb) {
-                        var type = cb.getValue();
-                        if ( type && Ext.isString(type) ) {
-                            var models = type.split(',');
-                            var field_box = this.ownerCt.down('#fields_box');
-                            field_box.destroy();
-                            
-                            var field_picker = this.ownerCt.add({
-                                name: 'cycleStateFields',
-                                itemId: 'fields_box',
-                                xtype: 'rallyfieldpicker',
-                                modelTypes: models,
-                                labelWidth: 100,
-                                fieldLabel: 'Valid Cycle States',
-                                labelAlign: 'left',
-                                minWidth: 400,
-                                margin: '10 0 250 10',
-                                autoExpand: false,
-                                alwaysExpanded: false,
-                                storeConfig: {
-                                    context: {project: null}
-                                }
-                            });
-                            
-                            if (/PortfolioItem/.test(type)) {
-                                field_picker.setValue(['State']);
-                            } else {
-                                field_picker.setValue(['ScheduleState']);
-                            }
-                        }
+                    ready: function (cb) {
+                        cb.setValue(['State']);
                     }
+                }
+            },{
+                name: 'storyDefectCycleStateFields',
+                itemId: 'storyfields_box',
+                xtype: 'rallyfieldpicker',
+                modelTypes: ['HierarchicalRequirement','Defect'],
+                labelWidth: 225,
+                fieldLabel: 'Valid User Story/Defect Cycle States',
+                labelAlign: 'right',
+                minWidth: 450,
+                margin: '10 0 250 10',
+                autoExpand: false,
+                alwaysExpanded: false,
+                storeConfig: {
+                    context: {project: null}
                 },
-                readyEvent: 'ready'
-            },
-            {
-                name: 'cycleStateFields',
-                itemId: 'fields_box',
-                xtype: 'container'
+                listeners: {
+                    ready: function (cb) {
+                        cb.setValue(['ScheduleState']);
+                    }
+                }
             }
         ];
     },
@@ -1896,37 +1791,8 @@ Ext.define('CustomApp', {
         this._hideSettings();
         this.onSettingsUpdate(settings);
     },
-    //onSettingsUpdate:  Override
     onSettingsUpdate: function (settings){
-        //Build and save column settings...this means that we need to get the display names and multi-list
-        var cycleStateFields_setting = this.getSetting('cycleStateFields');
-        var cycleStateFields = cycleStateFields_setting;
-        
-        if (! Ext.isArray(cycleStateFields_setting) ){
-            cycleStateFields = cycleStateFields_setting.split(',');
-        }
-        
-        this.logger.log("Settings models and fields:", settings.models, cycleStateFields);
-        if ( cycleStateFields.length === 0 || Ext.isEmpty( cycleStateFields[0] ) ) {
-            cycleStateFields = ['ScheduleState'];
-            if ( /PortfolioItem/.test(settings.models) ) {
-                cycleStateFields = ['State'];
-            }
-        }
-        
-        if ( settings.models && Ext.isString(settings.models) ) {
-            settings.modelNames = settings.models.split(',');
-        }
-        this.logger.log('onSettingsUpdate',settings, cycleStateFields);
-        Ext.apply(this, settings);
-        
-        this._fetchFields(cycleStateFields).then({
-            scope: this,
-            success: function(){
-                this.logger.log('Valid fields for cycle and filter time', settings.modelNames, this.cycleFields, this.filterFields);
-                this._addTypePicker(settings.modelNames);
-            }
-        });
+        this._addTypePicker();
     }
 });
             
