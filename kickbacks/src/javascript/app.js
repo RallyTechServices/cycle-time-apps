@@ -284,6 +284,8 @@ Ext.define("kickbacks-app", {
             itemId: 'cb-field',
             margin: 10,
             fieldLabel: 'Field',
+            minWidth: 225,
+            labelWidth: 50,
             labelAlign: 'right',
             model: type
         });
