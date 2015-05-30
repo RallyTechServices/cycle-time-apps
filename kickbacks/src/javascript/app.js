@@ -177,8 +177,8 @@ Ext.define("kickbacks-app", {
             columnCfgs: [
                 {dataIndex:'formattedID', text:'Formatted ID'},
                 {dataIndex:'name', text:'Name', flex: 1},
-                {dataIndex:'lastState', text: 'Last State'},
-                {dataIndex:'currentState', text:'Current State'},
+                {dataIndex:'lastState', text: 'Original State'},
+                {dataIndex:'currentState', text:'Changed-to State'},
                 {dataIndex:'date', text: 'Date', flex: 1},
                 {dataIndex:'deletion', text:'Deleted'}
             ]
