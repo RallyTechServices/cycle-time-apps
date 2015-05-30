@@ -59,7 +59,9 @@ Ext.define('CycleCalculator', {
          Ext.each(cycle_time_data, function(ctd){
              ctd.startDate = Rally.util.DateTime.fromIsoString(ctd.startDate);
              ctd.endDate = Rally.util.DateTime.fromIsoString(ctd.endDate);
-             cycleTimeDataExport.push(ctd);
+             if (ctd.endDate > date_buckets[0]){ //Only export data that is within the requested time frame
+                 cycleTimeDataExport.push(ctd);
+             }
          });
          this.cycleTimeDataExport = cycleTimeDataExport; 
 
