@@ -54,8 +54,9 @@ Ext.define("kickbacks-app", {
        }
 
        var hydrate = ["Owner"];
-       if (field == 'ScheduleState'){
+       if (field == 'ScheduleState' || field == 'State'){
            hydrate.push(field);
+           hydrate.push(previousValueField);
        }
 
        var kb_store = Ext.create('Rally.data.lookback.SnapshotStore',{

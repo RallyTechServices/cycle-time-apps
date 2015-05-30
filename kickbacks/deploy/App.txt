@@ -3,11 +3,11 @@
 <head>
     <title>Kickbacks and Deletions</title>
     <!--  (c) 2015 Rally Software Development Corp.  All Rights Reserved. -->
-    <!--  Build Date: Sat May 30 2015 17:48:01 GMT-0600 (MDT) -->
+    <!--  Build Date: Sat May 30 2015 17:55:44 GMT-0600 (MDT) -->
     
     <script type="text/javascript">
-        var APP_BUILD_DATE = "Sat May 30 2015 17:48:01 GMT-0600 (MDT)";
-        var CHECKSUM = 65336379169;
+        var APP_BUILD_DATE = "Sat May 30 2015 17:55:44 GMT-0600 (MDT)";
+        var CHECKSUM = 65582942090;
     </script>
     
     <script type="text/javascript" src="/apps/2.0/sdk.js"></script>
@@ -1297,7 +1297,7 @@ Ext.define('Rally.technicalservices.DropdownFieldCombobox', {
 
         if (!field.hidden && !field.ReadOnly &&
             field.attributeDefinition && field.attributeDefinition.Constrained &&
-            (field.name == 'ScheduleState' || /c_KanbanProcess/.test(field.name))){
+            (field.name == 'ScheduleState' || field.name == 'State' || /c_KanbanProcess/.test(field.name))){
             return true;
         }
         return false;
@@ -1387,8 +1387,9 @@ Ext.define("kickbacks-app", {
        }
 
        var hydrate = ["Owner"];
-       if (field == 'ScheduleState'){
+       if (field == 'ScheduleState' || field == 'State'){
            hydrate.push(field);
+           hydrate.push(previousValueField);
        }
 
        var kb_store = Ext.create('Rally.data.lookback.SnapshotStore',{
