@@ -54,8 +54,9 @@ Ext.define("kickbacks-app", {
        }
 
        var hydrate = ["Owner"];
-       if (field == 'ScheduleState'){
+       if (field == 'ScheduleState' || field == 'State'){
            hydrate.push(field);
+           hydrate.push(previousValueField);
        }
 
        var kb_store = Ext.create('Rally.data.lookback.SnapshotStore',{
@@ -177,8 +178,8 @@ Ext.define("kickbacks-app", {
             columnCfgs: [
                 {dataIndex:'formattedID', text:'Formatted ID'},
                 {dataIndex:'name', text:'Name', flex: 1},
-                {dataIndex:'lastState', text: 'Last State'},
-                {dataIndex:'currentState', text:'Current State'},
+                {dataIndex:'lastState', text: 'Original State'},
+                {dataIndex:'currentState', text:'Changed-to State'},
                 {dataIndex:'date', text: 'Date', flex: 1},
                 {dataIndex:'deletion', text:'Deleted'}
             ]
@@ -284,6 +285,8 @@ Ext.define("kickbacks-app", {
             itemId: 'cb-field',
             margin: 10,
             fieldLabel: 'Field',
+            minWidth: 225,
+            labelWidth: 50,
             labelAlign: 'right',
             model: type
         });

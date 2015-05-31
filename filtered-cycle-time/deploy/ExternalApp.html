@@ -3,10 +3,10 @@
 <head>
     <title>Filtered Cycle Time</title>
     <!--  (c) 2014 Rally Software Development Corp.  All Rights Reserved. -->
-    <!--  Build Date: Fri May 15 2015 23:10:23 GMT-0600 (MDT) -->
+    <!--  Build Date: Sat May 30 2015 17:33:05 GMT-0600 (MDT) -->
     
     <script type="text/javascript">
-        var APP_BUILD_DATE = "Fri May 15 2015 23:10:23 GMT-0600 (MDT)";
+        var APP_BUILD_DATE = "Sat May 30 2015 17:33:05 GMT-0600 (MDT)";
         var CHECKSUM = [%= checksum %];
     </script>
     
@@ -199,7 +199,9 @@ Ext.define('CycleCalculator', {
          Ext.each(cycle_time_data, function(ctd){
              ctd.startDate = Rally.util.DateTime.fromIsoString(ctd.startDate);
              ctd.endDate = Rally.util.DateTime.fromIsoString(ctd.endDate);
-             cycleTimeDataExport.push(ctd);
+             if (ctd.endDate > date_buckets[0]){ //Only export data that is within the requested time frame
+                 cycleTimeDataExport.push(ctd);
+             }
          });
          this.cycleTimeDataExport = cycleTimeDataExport; 
 

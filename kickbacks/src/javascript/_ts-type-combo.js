@@ -105,8 +105,7 @@ Ext.define('Rally.technicalservices.DropdownFieldCombobox', {
 
         if (!field.hidden && !field.ReadOnly &&
             field.attributeDefinition && field.attributeDefinition.Constrained &&
-            (Ext.Array.contains(attributeTypes, field.attributeDefinition.AttributeType) ||
-                field.name == 'State')){
+            (field.name == 'ScheduleState' || field.name == 'State' || /c_KanbanProcess/.test(field.name))){
             return true;
         }
         return false;
