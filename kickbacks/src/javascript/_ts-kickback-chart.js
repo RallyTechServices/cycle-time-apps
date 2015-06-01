@@ -23,7 +23,18 @@ Ext.define('Rally.technicalservices.KickbackChart',{
                 title: {
                     text: 'Number of Events'
                 },
-                min: 0
+                min: 0,
+                tickPositioner: function(){
+                    console.log('_yAxisTickPositioner');
+                    var positions = [],
+                        tick = 0,
+                        increment = Math.ceil((this.dataMax - this.dataMin) / 6);
+
+                    for (tick; tick - increment <= this.dataMax; tick += increment) {
+                        positions.push(tick);
+                    }
+                    return positions;
+                }
             }
         ],
         plotOptions: {
