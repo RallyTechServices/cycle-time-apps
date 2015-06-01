@@ -3,11 +3,11 @@
 <head>
     <title>Kickbacks and Deletions</title>
     <!--  (c) 2015 Rally Software Development Corp.  All Rights Reserved. -->
-    <!--  Build Date: Sat May 30 2015 17:55:44 GMT-0600 (MDT) -->
+    <!--  Build Date: Mon Jun 01 2015 08:12:21 GMT-0600 (MDT) -->
     
     <script type="text/javascript">
-        var APP_BUILD_DATE = "Sat May 30 2015 17:55:44 GMT-0600 (MDT)";
-        var CHECKSUM = 65582942090;
+        var APP_BUILD_DATE = "Mon Jun 01 2015 08:12:21 GMT-0600 (MDT)";
+        var CHECKSUM = 66405745459;
     </script>
     
     <script type="text/javascript" src="/apps/2.0/sdk.js"></script>
@@ -1006,7 +1006,18 @@ Ext.define('Rally.technicalservices.KickbackChart',{
                 title: {
                     text: 'Number of Events'
                 },
-                min: 0
+                min: 0,
+                tickPositioner: function(){
+                    console.log('_yAxisTickPositioner');
+                    var positions = [],
+                        tick = 0,
+                        increment = Math.ceil((this.dataMax - this.dataMin) / 6);
+
+                    for (tick; tick - increment <= this.dataMax; tick += increment) {
+                        positions.push(tick);
+                    }
+                    return positions;
+                }
             }
         ],
         plotOptions: {
