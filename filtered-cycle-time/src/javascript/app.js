@@ -56,7 +56,7 @@ Ext.define('CustomApp', {
             this.showSettings(this.config);
         } else {
             this.onSettingsUpdate(this.getSettings());  //(this.config.type,this.config.pageSize,this.config.fetch,this.config.columns);
-        }        
+        }
     },
     _getValidFields: function(type){
         var cycleStateFields = [],

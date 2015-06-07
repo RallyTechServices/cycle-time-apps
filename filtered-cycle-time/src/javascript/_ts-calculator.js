@@ -143,6 +143,11 @@ Ext.define('CycleCalculator', {
             if (snap[field]){
                 previous_state_index = state_index;
                 state_index = _.indexOf(precedence, snap[field]);
+            } else {
+                if (previous_state_index > 0){
+                    //the field was cleared out
+                    state_index = -1;
+                }
             }
             if (state_index >= start_index && previous_state_index < start_index && start_index > -1){
                 start_date = Rally.util.DateTime.fromIsoString(snap._ValidFrom);  
