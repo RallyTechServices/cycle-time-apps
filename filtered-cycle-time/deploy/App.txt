@@ -3,11 +3,11 @@
 <head>
     <title>Filtered Cycle Time</title>
     <!--  (c) 2014 Rally Software Development Corp.  All Rights Reserved. -->
-    <!--  Build Date: Sat May 30 2015 17:33:05 GMT-0600 (MDT) -->
+    <!--  Build Date: Sat Jun 06 2015 22:52:38 GMT-0600 (MDT) -->
     
     <script type="text/javascript">
-        var APP_BUILD_DATE = "Sat May 30 2015 17:33:05 GMT-0600 (MDT)";
-        var CHECKSUM = 73393025230;
+        var APP_BUILD_DATE = "Sat Jun 06 2015 22:52:38 GMT-0600 (MDT)";
+        var CHECKSUM = 73664208191;
     </script>
     
     <script type="text/javascript" src="/apps/2.0rc3/sdk.js"></script>
@@ -283,6 +283,11 @@ Ext.define('CycleCalculator', {
             if (snap[field]){
                 previous_state_index = state_index;
                 state_index = _.indexOf(precedence, snap[field]);
+            } else {
+                if (previous_state_index > 0){
+                    //the field was cleared out
+                    state_index = -1;
+                }
             }
             if (state_index >= start_index && previous_state_index < start_index && start_index > -1){
                 start_date = Rally.util.DateTime.fromIsoString(snap._ValidFrom);  
@@ -1119,7 +1124,7 @@ Ext.define('CustomApp', {
             this.showSettings(this.config);
         } else {
             this.onSettingsUpdate(this.getSettings());  //(this.config.type,this.config.pageSize,this.config.fetch,this.config.columns);
-        }        
+        }
     },
     _getValidFields: function(type){
         var cycleStateFields = [],
