@@ -25,7 +25,8 @@ Ext.define('CustomApp', {
     config: {
         defaultSettings: {
             cycleStateFields:  "ScheduleState",
-            modelNames: ['HierarchicalRequirement','Defect']
+            modelNames: ['HierarchicalRequirement','Defect'],
+            percentileLineThreshold: 85
         }
     },
     defaultField: 'ScheduleState',
@@ -409,7 +410,8 @@ Ext.define('CustomApp', {
                     endDate: end_date,
                     granularity: granularity,
                     dateFormat: granularity_rec.get('dateFormat'),
-                    dataFilters: filters            
+                    dataFilters: filters,
+                    percentileLineThreshold: this.getSetting('percentileLineThreshold')
                 });
                 this.setLoading(false);
                 var chart_data = calc.runCalculation(snapshots);
@@ -660,6 +662,15 @@ Ext.define('CustomApp', {
         var me = this;
         
         return [{
+                name: 'percentileLineThreshold',
+                xtype: 'rallynumberfield',
+                minValue: 0,
+                maxValue: 100,
+                labelWidth: 225,
+                margin: '10 0 10 10',
+                fieldLabel: 'Percentile Line Threshold (%)',
+                labelAlign: 'right'
+            },{
                 name: 'portfolioItemCycleStateFields',
                 itemId: 'portfoliofields_box',
                 xtype: 'rallyfieldpicker',

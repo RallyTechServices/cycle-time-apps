@@ -25,8 +25,8 @@ Ext.define('CycleCalculator', {
     constructor: function (config) {
         this.mergeConfig(config);
     },
-    runCalculation: function(snapshots) {   
-         var snaps_by_oid = Rally.technicalservices.Toolbox.aggregateSnapsByOid(snapshots);
+    runCalculation: function(snapshots) {
+        var snaps_by_oid = Rally.technicalservices.Toolbox.aggregateSnapsByOid(snapshots);
          var date_buckets = Rally.technicalservices.Toolbox.getDateBuckets(this.startDate, this.endDate, this.granularity);
 
          var cycle_time_data = [];
