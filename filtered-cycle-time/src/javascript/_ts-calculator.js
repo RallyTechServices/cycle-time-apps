@@ -25,8 +25,8 @@ Ext.define('CycleCalculator', {
     constructor: function (config) {
         this.mergeConfig(config);
     },
-    runCalculation: function(snapshots) {   
-         var snaps_by_oid = Rally.technicalservices.Toolbox.aggregateSnapsByOid(snapshots);
+    runCalculation: function(snapshots) {
+        var snaps_by_oid = Rally.technicalservices.Toolbox.aggregateSnapsByOid(snapshots);
          var date_buckets = Rally.technicalservices.Toolbox.getDateBuckets(this.startDate, this.endDate, this.granularity);
 
          var cycle_time_data = [];
@@ -53,6 +53,10 @@ Ext.define('CycleCalculator', {
             series.push(this._getTrendline(this._getSeries(cycle_time_data, date_buckets, this.granularity,type)));
          },this);
 
+        Ext.Array.each(this.modelNames,function(type){
+            series.push(this._getPercentileLine(cycle_time_data, date_buckets, this.granularity,type));
+        },this);
+
          categories = Rally.technicalservices.Toolbox.formatDateBuckets(date_buckets,this.dateFormat);
          
          var cycleTimeDataExport = [];
@@ -71,7 +75,43 @@ Ext.define('CycleCalculator', {
             categories: categories
         }
     },
+    _getPercentileLine: function(cycletimedata, date_buckets, granularity, type){
+        var series_raw_data = [];
+        var series_data = [];
+        var tooltip_data = [];
 
+        for (var i=0; i<date_buckets.length; i++){
+            series_raw_data[i] = [];
+            tooltip_data[i] = 0;
+            series_data[i] = {y: null, n: 0};
+        }
+
+        Ext.each(cycletimedata, function(cdata){
+            for (var i=0; i<date_buckets.length; i++){
+                if ((type == undefined || type == cdata.artifactType) && cdata.endDate >= date_buckets[i] && cdata.endDate < Rally.util.DateTime.add(date_buckets[i],granularity,1)){
+                    series_raw_data[i].push(cdata.days)
+                }
+            }
+        });
+
+        var series_data = _.range(date_buckets.length).map(function () { return {y: null, n: 0} })
+        for (var i=0; i<series_raw_data.length; i++){
+            var pValue = Rally.technicalservices.Toolbox.calculatePercentileValue(this.percentileLineThreshold, series_raw_data[i]);
+            this.logger.log('Calculate Percentile (len, value)',type, series_raw_data[i].length, pValue);
+            if (pValue){
+                series_data[i].y = pValue;
+                series_data[i].n = '(' + series_raw_data[i].length + ' Artifacts)';
+            }
+        }
+
+        return {
+            name: Ext.String.format("{0}% for {1}", this.percentileLineThreshold, this._getSeriesName(type)),
+            color: this._getColorForSeries(type),
+            data: series_data,
+            display: 'line',
+            dashStyle: 'Dot'
+        };
+    },
     _getTrendline: function(series){
         /**
          * Regression Equation(y) = a + bx  
@@ -111,7 +151,7 @@ Ext.define('CycleCalculator', {
              color: series.color,
              data: y,
              display: 'line',
-             dashStyle: 'Dash'
+             dashStyle: 'LongDash'
          };
 
     },
@@ -133,8 +173,7 @@ Ext.define('CycleCalculator', {
         var seconds = null;
         var days = null;
         var include = false; 
-        console.log('--');
-        
+
         if ( start_index == -1 ) {
             start_date = Rally.util.DateTime.fromIsoString(snaps[0]._ValidFrom);
         }

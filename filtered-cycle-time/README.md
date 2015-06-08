@@ -42,3 +42,9 @@ Trendlines are calculated using the regression equation Y = a + bX where (a) is 
 
 Where N is the number of data points used in the calculation.  If a data point is null, it is not included in the calculation or N (number of points).  The 
 Y data point is the mean of the cycle time for the date bucket represented by the X ordinal.  
+
+Percentile Lines
+Percentile lines are calculated for the percent indicated in the Percentile Line Threshold app setting (a number between 0 and 100).  The algorithm used is the Microsoft Excel
+method from the [Percentile wikipedia page](http://en.wikipedia.org/wiki/Percentile).
+
+
