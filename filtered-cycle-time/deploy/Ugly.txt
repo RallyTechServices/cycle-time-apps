@@ -3,10 +3,10 @@
 <head>
     <title>Filtered Cycle Time</title>
     <!--  (c) 2013 Rally Software Development Corp.  All Rights Reserved. -->
-    <!--  Build Date: Sun Jun 07 2015 22:44:25 GMT-0600 (MDT) -->
+    <!--  Build Date: Mon Jun 08 2015 13:36:51 GMT-0600 (MDT) -->
     
     <script type="text/javascript">
-        var APP_BUILD_DATE = "Sun Jun 07 2015 22:44:25 GMT-0600 (MDT)";
+        var APP_BUILD_DATE = "Mon Jun 08 2015 13:36:51 GMT-0600 (MDT)";
         var CHECKSUM = [%= checksum %];
     </script>
     
