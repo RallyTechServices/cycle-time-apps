@@ -4,6 +4,44 @@ Ext.define('Rally.technicalservices.Toolbox',{
      * Returns beginnig of month as date for the current time zone
      * 
      */
+    calculatePercentileValue: function(percentileThreshold, arrayValues){
+
+        if (arrayValues && arrayValues.length > 0){
+
+            arrayValues.sort(function(a, b){return a-b});
+
+            var rank = percentileThreshold/100 * (arrayValues.length - 1) + 1,
+                k = Math.floor(rank),
+                d = rank - k,
+                pValue = 0;
+
+            console.log('percentile calcs (len, rank, idx, decimal, value', arrayValues.length, rank, k, d, pValue);
+
+            if (k==0 || arrayValues.length == 1){
+                pValue = arrayValues[0];
+            } else if (k == arrayValues.length){ //this.shouldn't happen if percentile can't be greater than 100
+                pValue = arrayValues[arrayValues.length-1];
+            } else {
+                pValue = arrayValues[k-1] + d *(arrayValues[k] - arrayValues[k-1]);
+            }
+            console.log('percentile calcs (len, rank, idx, decimal, value', arrayValues.length, rank, k, d, pValue);
+            return pValue;
+            return Ext.String.format("rank={0}, k={1}, d={2}, pValue={3}, arrayValues = {4}",rank,k,d,pValue,arrayValues);
+
+        //    var pIdx = arrayValues.length * percentileThreshold/ 100 - 1,
+        //        roundedIdx = Math.ceil(pIdx),
+        //        pValue = 0;
+        //
+        //    if (roundedIdx == pIdx && roundedIdx != (arrayValues.length-1)){
+        //        pValue = (arrayValues[roundedIdx] + arrayValues[roundedIdx + 1])/2
+        //    } else {
+        //        pValue = arrayValues[roundedIdx];
+        //    }
+        //    console.log('percentile calcs (len, idx, rounded idx, value, array', arrayValues.length, pIdx, roundedIdx, pValue,arrayValues);
+        //    return pValue;
+        }
+        return null;
+    },
     getBeginningOfMonthAsDate: function(dateInMonth){
         var year = dateInMonth.getFullYear();
         var month = dateInMonth.getMonth();
