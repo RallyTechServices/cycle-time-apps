@@ -3,11 +3,11 @@
 <head>
     <title>Filtered Cycle Time</title>
     <!--  (c) 2014 Rally Software Development Corp.  All Rights Reserved. -->
-    <!--  Build Date: Sun Jun 07 2015 22:44:25 GMT-0600 (MDT) -->
+    <!--  Build Date: Mon Jun 08 2015 13:36:51 GMT-0600 (MDT) -->
     
     <script type="text/javascript">
-        var APP_BUILD_DATE = "Sun Jun 07 2015 22:44:25 GMT-0600 (MDT)";
-        var CHECKSUM = 74641061260;
+        var APP_BUILD_DATE = "Mon Jun 08 2015 13:36:51 GMT-0600 (MDT)";
+        var CHECKSUM = 84127221129;
     </script>
     
     <script type="text/javascript" src="/apps/2.0rc3/sdk.js"></script>
@@ -193,6 +193,10 @@ Ext.define('CycleCalculator', {
             series.push(this._getTrendline(this._getSeries(cycle_time_data, date_buckets, this.granularity,type)));
          },this);
 
+        Ext.Array.each(this.modelNames,function(type){
+            series.push(this._getPercentileLine(cycle_time_data, date_buckets, this.granularity,type));
+        },this);
+
          categories = Rally.technicalservices.Toolbox.formatDateBuckets(date_buckets,this.dateFormat);
          
          var cycleTimeDataExport = [];
@@ -211,7 +215,43 @@ Ext.define('CycleCalculator', {
             categories: categories
         }
     },
+    _getPercentileLine: function(cycletimedata, date_buckets, granularity, type){
+        var series_raw_data = [];
+        var series_data = [];
+        var tooltip_data = [];
 
+        for (var i=0; i<date_buckets.length; i++){
+            series_raw_data[i] = [];
+            tooltip_data[i] = 0;
+            series_data[i] = {y: null, n: 0};
+        }
+
+        Ext.each(cycletimedata, function(cdata){
+            for (var i=0; i<date_buckets.length; i++){
+                if ((type == undefined || type == cdata.artifactType) && cdata.endDate >= date_buckets[i] && cdata.endDate < Rally.util.DateTime.add(date_buckets[i],granularity,1)){
+                    series_raw_data[i].push(cdata.days)
+                }
+            }
+        });
+
+        var series_data = _.range(date_buckets.length).map(function () { return {y: null, n: 0} })
+        for (var i=0; i<series_raw_data.length; i++){
+            var pValue = Rally.technicalservices.Toolbox.calculatePercentileValue(this.percentileLineThreshold, series_raw_data[i]);
+            this.logger.log('Calculate Percentile (len, value)',type, series_raw_data[i].length, pValue);
+            if (pValue){
+                series_data[i].y = pValue;
+                series_data[i].n = '(' + series_raw_data[i].length + ' Artifacts)';
+            }
+        }
+
+        return {
+            name: Ext.String.format("{0}% for {1}", this.percentileLineThreshold, this._getSeriesName(type)),
+            color: this._getColorForSeries(type),
+            data: series_data,
+            display: 'line',
+            dashStyle: 'Dot'
+        };
+    },
     _getTrendline: function(series){
         /**
          * Regression Equation(y) = a + bx  
@@ -251,7 +291,7 @@ Ext.define('CycleCalculator', {
              color: series.color,
              data: y,
              display: 'line',
-             dashStyle: 'Dash'
+             dashStyle: 'LongDash'
          };
 
     },
@@ -273,8 +313,7 @@ Ext.define('CycleCalculator', {
         var seconds = null;
         var days = null;
         var include = false; 
-        console.log('--');
-        
+
         if ( start_index == -1 ) {
             start_date = Rally.util.DateTime.fromIsoString(snaps[0]._ValidFrom);
         }
@@ -996,6 +1035,44 @@ Ext.define('Rally.technicalservices.Toolbox',{
      * Returns beginnig of month as date for the current time zone
      * 
      */
+    calculatePercentileValue: function(percentileThreshold, arrayValues){
+
+        if (arrayValues && arrayValues.length > 0){
+
+            arrayValues.sort(function(a, b){return a-b});
+
+            var rank = percentileThreshold/100 * (arrayValues.length - 1) + 1,
+                k = Math.floor(rank),
+                d = rank - k,
+                pValue = 0;
+
+            console.log('percentile calcs (len, rank, idx, decimal, value', arrayValues.length, rank, k, d, pValue);
+
+            if (k==0 || arrayValues.length == 1){
+                pValue = arrayValues[0];
+            } else if (k == arrayValues.length){ //this.shouldn't happen if percentile can't be greater than 100
+                pValue = arrayValues[arrayValues.length-1];
+            } else {
+                pValue = arrayValues[k-1] + d *(arrayValues[k] - arrayValues[k-1]);
+            }
+            console.log('percentile calcs (len, rank, idx, decimal, value', arrayValues.length, rank, k, d, pValue);
+            return pValue;
+            return Ext.String.format("rank={0}, k={1}, d={2}, pValue={3}, arrayValues = {4}",rank,k,d,pValue,arrayValues);
+
+        //    var pIdx = arrayValues.length * percentileThreshold/ 100 - 1,
+        //        roundedIdx = Math.ceil(pIdx),
+        //        pValue = 0;
+        //
+        //    if (roundedIdx == pIdx && roundedIdx != (arrayValues.length-1)){
+        //        pValue = (arrayValues[roundedIdx] + arrayValues[roundedIdx + 1])/2
+        //    } else {
+        //        pValue = arrayValues[roundedIdx];
+        //    }
+        //    console.log('percentile calcs (len, idx, rounded idx, value, array', arrayValues.length, pIdx, roundedIdx, pValue,arrayValues);
+        //    return pValue;
+        }
+        return null;
+    },
     getBeginningOfMonthAsDate: function(dateInMonth){
         var year = dateInMonth.getFullYear();
         var month = dateInMonth.getMonth();
