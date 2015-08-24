@@ -115,7 +115,6 @@ Ext.define('CycleCalculator', {
         }
         var end_index = _.indexOf(precedence, endValue);
 
-        var include = false; 
         
         //Assumes snaps are stored in ascending date order.  
         var start_date = null, end_date = null, between_states = false, days = null; 
@@ -127,7 +126,7 @@ Ext.define('CycleCalculator', {
         var ready_time = 0, unready_date = null, ready_date = null; 
         var seconds = null;
         var days = null;
-        var include = false; 
+        var should_include = false; 
 
         Ext.each(snaps, function(snap){
             
@@ -145,7 +144,7 @@ Ext.define('CycleCalculator', {
                     seconds = Rally.util.DateTime.getDifference(end_date,start_date,"second");
                     days = Math.floor(seconds/86400) + 1;  
                 }
-                include = this._snapMeetsFilterCriteria(snap);
+                should_include = this._snapMeetsFilterCriteria(snap);
             }
         }, this);
         
@@ -157,13 +156,16 @@ Ext.define('CycleCalculator', {
             pct_blocked = (blocked_time/seconds * 100);
             pct_ready = (ready_time/seconds * 100);
         }
+        
+
+        
         return {formattedId: snaps[0].FormattedID, 
                 seconds: seconds, 
                 days: days, 
                 endDate: end_date, 
                 startDate: start_date, 
                 artifactType: type, 
-                include: include,
+                'include': should_include,
                 blockedTime: blocked_time,
                 readyTime: ready_time,
                 pctBlocked: pct_blocked,
@@ -211,7 +213,7 @@ Ext.define('CycleCalculator', {
     },
     _snapMeetsFilterCriteria: function(snap){
         var is_filtered = true;
-     //   this.logger.log('_snapMeetsFilterCriteria', snap);
+       // this.logger.log('_snapMeetsFilterCriteria', snap, filter);
         Ext.each(this.dataFilters, function(filter){
             var str_format = "{0} {1} {2}";
             if (isNaN(snap[filter.property]) && isNaN(filter.value)){
@@ -225,11 +227,11 @@ Ext.define('CycleCalculator', {
             var val = filter.value || '';
             if (val.length == 0 || snap[filter.property].length == 0){
                 is_filtered = (val.length == 0 && snap[filter.property].length == 0);  
-               // this.logger.log('_snapMeetsFilterCriteria filter property or value is blank', filter.property, snap[filter.property], is_filtered);
+                //this.logger.log('_snapMeetsFilterCriteria filter property or value is blank', filter.property, snap[filter.property], is_filtered);
             } else {
                 var str_eval = Ext.String.format(str_format, snap[filter.property], operator, val);
                 is_filtered = eval(str_eval);
-               // this.logger.log('_snapMeetsFilterCriteria eval', filter, str_eval,is_filtered);
+                //this.logger.log('_snapMeetsFilterCriteria eval', filter, str_eval,is_filtered);
             }
             return is_filtered;  //if filtered is false, then we want to stop looping.  
         },this);
