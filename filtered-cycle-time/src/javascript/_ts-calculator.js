@@ -191,17 +191,19 @@ Ext.define('CycleCalculator', {
             if (state_index >= start_index && previous_state_index < start_index && start_index > -1){
                 start_date = Rally.util.DateTime.fromIsoString(snap._ValidFrom);  
             }
-
             if (state_index >= end_index && previous_state_index < end_index){
                 end_date = Rally.util.DateTime.fromIsoString(snap._ValidFrom);
-                
+
+                console.log('fred',start_date, end_date, snap.FormattedID, include, days);
+
                 if (start_date != null){
                     seconds = Rally.util.DateTime.getDifference(end_date,start_date,"second");
                     days = Math.floor(seconds/86400) + 1;  
                 }
                 include = this._snapMeetsFilterCriteria(snap);
             }
-            
+            console.log('start',start_date, end_date, snap.FormattedID, include, days);
+
         }, this);
         
         return {formattedId: snaps[0].FormattedID, seconds: seconds, days: days, endDate: end_date, startDate: start_date, artifactType: type, include: include };
