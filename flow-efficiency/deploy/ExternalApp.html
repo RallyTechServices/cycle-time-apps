@@ -3,10 +3,10 @@
 <head>
     <title>Flow Efficiency</title>
     <!--  (c) 2014 Rally Software Development Corp.  All Rights Reserved. -->
-    <!--  Build Date: Thu Apr 23 2015 12:10:31 GMT-0600 (MDT) -->
+    <!--  Build Date: Tue May 10 2016 10:45:25 GMT-0600 (MDT) -->
     
     <script type="text/javascript">
-        var APP_BUILD_DATE = "Thu Apr 23 2015 12:10:31 GMT-0600 (MDT)";
+        var APP_BUILD_DATE = "Tue May 10 2016 10:45:25 GMT-0600 (MDT)";
         var CHECKSUM = [%= checksum %];
     </script>
     
@@ -394,9 +394,6 @@ Ext.define('CycleCalculator', {
                         var adjusted_cycle_time = (cdata.seconds - cdata.blockedTime - cdata.readyTime);  
                         var efficiency = (adjusted_cycle_time/cdata.seconds) * 100;
                         series_raw_data[i].push(efficiency);
-                    }
-                    if (date_buckets[i] > new Date("03/31/2015")){
-                        console.log('efficiency date, cycle, blocked, ready',efficiency, date_buckets[i],cdata.seconds, cdata.blockedTime, cdata.readyTime);
                     }
                     //series_raw_data[i].push(efficiency);
                 }
@@ -1113,12 +1110,12 @@ Ext.define('CustomApp', {
             tpl:'<div class="ts-filter"><b>Applied Filters:</b><br><tpl for=".">{displayProperty} {operator} {value}<br></tpl></div>'},
         {xtype:'tsinfolink'}
     ],
-    scheduleStateMapping: {
-        "21934055950": "Accepted",
-        "21934055944": "Defined" ,
-        "21934055946": "In-Progress",
-        "21934055948": "Completed"
-    },
+    //scheduleStateMapping: {
+    //    "21934055950": "Accepted",
+    //    "21934055944": "Defined" ,
+    //    "21934055946": "In-Progress",
+    //    "21934055948": "Completed"
+    //},
     exportHash: {
         formattedId: 'Formatted ID',
         days: 'Cycle Time (Days)',
@@ -1595,13 +1592,13 @@ Ext.define('CustomApp', {
             success: function(snapshots){
                 this.logger.log('loadSnapshots success', snapshots);
                 var hydrated_snaps = [];  
-                var scheduleStateMapping = this.scheduleStateMapping;  
+               // var scheduleStateMapping = this.scheduleStateMapping;
                 for(var i=0; i< snapshots.length; i++){
                     var type = storeConfigs[i]["find"]["_TypeHierarchy"];
                     //Now we will hydrate the type ourselves
                     hydrated_snaps.push(_.map(snapshots[i],function(snap){
                         var obj = snap.getData();
-                        obj["ScheduleState"] = scheduleStateMapping[snap.get('ScheduleState').toString()]
+                      //  obj["ScheduleState"] = scheduleStateMapping[snap.get('ScheduleState').toString()]
                         obj["_TypeHierarchy"] = [type];
                         return obj;
                     }));
@@ -1664,6 +1661,7 @@ Ext.define('CustomApp', {
         var store_config ={
              find: find,
              fetch: fetch,
+             hydrate: ['ScheduleState'],
              sort: {
                  _ValidFrom: 1
              },

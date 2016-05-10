@@ -14,12 +14,12 @@ Ext.define('CustomApp', {
             tpl:'<div class="ts-filter"><b>Applied Filters:</b><br><tpl for=".">{displayProperty} {operator} {value}<br></tpl></div>'},
         {xtype:'tsinfolink'}
     ],
-    scheduleStateMapping: {
-        "21934055950": "Accepted",
-        "21934055944": "Defined" ,
-        "21934055946": "In-Progress",
-        "21934055948": "Completed"
-    },
+    //scheduleStateMapping: {
+    //    "21934055950": "Accepted",
+    //    "21934055944": "Defined" ,
+    //    "21934055946": "In-Progress",
+    //    "21934055948": "Completed"
+    //},
     exportHash: {
         formattedId: 'Formatted ID',
         days: 'Cycle Time (Days)',
@@ -496,13 +496,13 @@ Ext.define('CustomApp', {
             success: function(snapshots){
                 this.logger.log('loadSnapshots success', snapshots);
                 var hydrated_snaps = [];  
-                var scheduleStateMapping = this.scheduleStateMapping;  
+               // var scheduleStateMapping = this.scheduleStateMapping;
                 for(var i=0; i< snapshots.length; i++){
                     var type = storeConfigs[i]["find"]["_TypeHierarchy"];
                     //Now we will hydrate the type ourselves
                     hydrated_snaps.push(_.map(snapshots[i],function(snap){
                         var obj = snap.getData();
-                        obj["ScheduleState"] = scheduleStateMapping[snap.get('ScheduleState').toString()]
+                      //  obj["ScheduleState"] = scheduleStateMapping[snap.get('ScheduleState').toString()]
                         obj["_TypeHierarchy"] = [type];
                         return obj;
                     }));
@@ -565,6 +565,7 @@ Ext.define('CustomApp', {
         var store_config ={
              find: find,
              fetch: fetch,
+             hydrate: ['ScheduleState'],
              sort: {
                  _ValidFrom: 1
              },
