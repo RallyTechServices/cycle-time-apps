@@ -12,6 +12,7 @@ Ext.define('CustomApp', {
         {xtype:'container',itemId:'settings_box'},
         {xtype: 'container', itemId: 'type_selector_box', layout: {type: 'hbox'}},
         {xtype: 'container', itemId: 'value_selector_box', layout: {type: 'hbox'}},
+        {xtype: 'container', itemId: 'time_box', layout: {type: 'hbox'}},
         {xtype:'container',itemId:'button_box', layout: {type: 'hbox'}},
     //    {xtype:'container',itemId:'filter_box', layout: {type: 'vbox'}, title: 'Filter by', border: 1, style: {borderColor: 'gray', borderStyle: 'solid'}},
         {xtype:'container',itemId:'display_box'},
@@ -26,7 +27,8 @@ Ext.define('CustomApp', {
         defaultSettings: {
             cycleStateFields:  "ScheduleState",
             modelNames: ['HierarchicalRequirement','Defect'],
-            percentileLineThreshold: 85
+            percentileLineThreshold: 85,
+            excludeWeekends:false
         }
     },
     defaultField: 'ScheduleState',
@@ -251,7 +253,7 @@ Ext.define('CustomApp', {
      * Called when the field is updated.  
      */
     _updateDropdowns: function(cb){
-        
+        var me = this;
         this.logger.log('_updateDropdowns', cb.getValue(), cb.getRecord());
         
         if (this.down('#cb-from-state')){
@@ -259,9 +261,11 @@ Ext.define('CustomApp', {
             this.down('#cb-from-state').destroy();
             this.down('#cb-to-state').destroy();
             this.down('#cb-granularity').destroy();
+            this.down('#rb-time-box').destroy();
             this.down('#btn-update').destroy();
             this.down('#btn-filter').destroy();
             this.down('#btn-export').destroy();
+
         }
        
         var field = cb.getValue();
@@ -314,7 +318,7 @@ Ext.define('CustomApp', {
                 data: this.dateRangeStore
             });
 
-            this.down('#value_selector_box').add({
+            this.down('#time_box').add({
                 xtype: 'rallycombobox',
                 itemId: 'cb-date-range',
                 store: date_store,
@@ -328,6 +332,86 @@ Ext.define('CustomApp', {
                 margin: 10
             });
             
+            this.down('#value_selector_box').add({
+                xtype      : 'radiogroup',
+                fieldLabel : 'Select data for ',
+                itemId: 'rb-time-box',
+                defaults: {
+                    flex: 1
+                },
+                layout: 'hbox',
+                items: [
+                    {
+                        boxLabel  : 'Time Period ',
+                        name      : 'timebox',
+                        inputValue: 'T',
+                        id        : 'radio1',
+                        checked   : true,   
+                    }, {
+                        boxLabel  : 'Iteration ',
+                        name      : 'timebox',
+                        inputValue: 'I',
+                        id        : 'radio2'
+                    }, {
+                        boxLabel  : 'Release ',
+                        name      : 'timebox',
+                        inputValue: 'R',
+                        id        : 'radio3'
+                    }
+                ],
+                listeners:{
+                    change: function(rb){
+                        if(rb.lastValue.timebox == 'T'){
+                            me.down('#time_box').removeAll();
+                                me.down('#time_box').add({
+                                    xtype: 'rallycombobox',
+                                    itemId: 'cb-date-range',
+                                    store: date_store,
+                                    displayField: 'name',
+                                    valueField: 'value',
+                                    fieldLabel:  'Date Range',
+                                    labelAlign: 'right',
+                                    labelWidth: 65,
+                                    width: 250,
+                                    value: this.defaultDateRange,
+                                    margin: 10
+                                });
+                                
+                        }else if(rb.lastValue.timebox == 'I'){
+                                //console.log('me>>',me);
+                                me.down('#time_box').removeAll();
+                                me.down('#time_box').add({
+                                    xtype: 'rallyiterationcombobox',
+                                    fieldLabel: 'Iteration: ',
+                                    labelAlign: 'right',
+                                    minWidth: 300,
+                                    listeners: {
+                                        scope: me,
+                                        select: function(icb){
+                                            me._getReleaseOrIterationOids(icb);
+                                        }
+                                    }
+                                });
+
+                        }else if(rb.lastValue.timebox == 'R'){
+                                me.down('#time_box').removeAll();
+                                me.down('#time_box').add({
+                                    xtype: 'rallyreleasecombobox',
+                                    fieldLabel: 'Release: ',
+                                    labelAlign: 'right',
+                                    minWidth: 300,
+                                    listeners: {
+                                        scope: me,
+                                        select: function(icb){
+                                            me._getReleaseOrIterationOids(icb);
+                                        }
+                                    }
+                                });
+                        }
+                    }
+                }
+        });
+
             var button_width = 75; 
             this.down('#value_selector_box').add({
                 xtype: 'rallybutton',
@@ -376,14 +460,117 @@ Ext.define('CustomApp', {
         return state;
     },
 
+    _getReleaseOrIterationOids: function(cb) {
+        var me = this;
+        me.logger.log('_getReleaseOrIterationOids',cb);
+        me.timeboxValue = cb;
+        Deft.Chain.parallel([
+                me._getReleasesOrIterations
+        ],me).then({
+            scope: me,
+            success: function(results) {
+                me.logger.log('Results:',results);
+                
+                me.timebox_oids = Ext.Array.map(results[0], function(timebox) {
+                    return timebox.get('ObjectID');
+                });
+            },
+            failure: function(msg) {
+                Ext.Msg.alert('Problem Loading Timebox data', msg);
+            }
+        });
+    },
+
+
+    _getReleasesOrIterations:function(){
+        var deferred = Ext.create('Deft.Deferred');
+        var me = this;
+        this.logger.log('_getReleasesOrIterations>>',me.timeboxValue);
+
+        var timeboxModel = '';
+        var filters = [];
+
+        if(me.timeboxValue.name == 'Iteration'){
+            timeboxModel = 'Iteration';
+            filters =         [        {
+                    property: 'Name',
+                    operator: '=',
+                    value: me.timeboxValue.getRecord().get('Name')
+                },
+                {
+                    property: 'StartDate',
+                    operator: '=',
+                    value: me.timeboxValue.getRecord().get('StartDate').toISOString()
+                },
+                {
+                    property: 'EndDate',
+                    operator: '=',
+                    value: me.timeboxValue.getRecord().get('EndDate').toISOString()
+                }
+            ];
+        }else if(me.timeboxValue.name == 'Release'){
+            timeboxModel = 'Release';  
+            filters =         [        {
+                    property: 'Name',
+                    operator: '=',
+                    value: me.timeboxValue.getRecord().get('Name')
+                },
+                {
+                    property: 'ReleaseStartDate',
+                    operator: '=',
+                    value: me.timeboxValue.getRecord().get('ReleaseStartDate').toISOString()
+                },
+                {
+                    property: 'ReleaseDate',
+                    operator: '=',
+                    value: me.timeboxValue.getRecord().get('ReleaseDate').toISOString()
+                }
+            ];
+        }
+
+        Ext.create('Rally.data.wsapi.Store', {
+            model: timeboxModel,
+            fetch: ['ObjectID'],
+            filters: Rally.data.wsapi.Filter.and(filters)
+        }).load({
+            callback : function(records, operation, successful) {
+                if (successful){
+                    //console.log('records',records,'operation',operation,'successful',successful);
+                    deferred.resolve(records);
+                } else {
+                    me.logger.log("Failed: ", operation);
+                    deferred.reject('Problem loading: ' + operation.error.errors.join('. '));
+                }
+            }
+        });
+        return deferred.promise;
+    },
+
+
     _createChart: function(){
+        var me = this;
         var field = this.down('#cb-field').getValue();
         var granularity_rec = this.down('#cb-granularity').getRecord();
         var granularity = granularity_rec.get('value');  
-        var end_date = new Date(); 
+        var start_date,end_date = new Date(); 
         
-        var date_range = this.down('#cb-date-range').getValue();
-        var start_date = Rally.util.DateTime.add(new Date(),"month",date_range);
+        if(this.down('#rb-time-box').getValue().timebox == 'I'){
+            // find["Iteration"] = { '$in': this.timebox_oids };
+            if(me.timeboxValue){
+                start_date = new Date(me.timeboxValue.getRecord().get('StartDate'));
+                end_date = new Date(me.timeboxValue.getRecord().get('EndDate'));
+            }
+        }else if(this.down('#rb-time-box').getValue().timebox == 'R'){
+            // find["Release"] = { '$in': this.timebox_oids };
+            if(me.timeboxValue){
+                start_date = new Date(me.timeboxValue.getRecord().get('ReleaseStartDate'));
+                end_date = new Date(me.timeboxValue.getRecord().get('ReleaseDate'));
+            }
+        }else{
+            var date_range = this.down('#cb-date-range').getValue();
+            start_date = Rally.util.DateTime.add(new Date(),"month",date_range);
+        }
+
         var start_state = this._getStartState();
         var filters = this.dataFilters;  
         
@@ -411,7 +598,8 @@ Ext.define('CustomApp', {
                     granularity: granularity,
                     dateFormat: granularity_rec.get('dateFormat'),
                     dataFilters: filters,
-                    percentileLineThreshold: this.getSetting('percentileLineThreshold')
+                    percentileLineThreshold: this.getSetting('percentileLineThreshold'),
+                    excludeWeekends:this.getSetting('excludeWeekends')
                 });
                 this.setLoading(false);
                 var chart_data = calc.runCalculation(snapshots);
@@ -714,6 +902,13 @@ Ext.define('CustomApp', {
                     }
                 },
                 readyEvent: 'ready'
+            },{
+                name: 'excludeWeekends',
+                xtype: 'rallycheckboxfield',
+                boxLabelAlign: 'after',
+                fieldLabel: '',
+                margin: '0 0 25 200',
+                boxLabel: 'Exclude Weekends<br/><span style="color:#999999;"><i>Tick to Exclude Weekends on the chart</i></span>'
             }
         ];
     },
