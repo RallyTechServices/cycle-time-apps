@@ -3,10 +3,10 @@
 <head>
     <title>Filtered Cycle Time</title>
     <!--  (c) 2014 Rally Software Development Corp.  All Rights Reserved. -->
-    <!--  Build Date: Sun Aug 23 2015 16:56:02 GMT-0700 (PDT) -->
+    <!--  Build Date: Tue May 24 2016 15:26:26 GMT-0400 (EDT) -->
     
     <script type="text/javascript">
-        var APP_BUILD_DATE = "Sun Aug 23 2015 16:56:02 GMT-0700 (PDT)";
+        var APP_BUILD_DATE = "Tue May 24 2016 15:26:26 GMT-0400 (EDT)";
         var CHECKSUM = [%= checksum %];
     </script>
     
@@ -158,7 +158,8 @@ Ext.define('CycleCalculator', {
             HierarchicalRequirement: 'green',
             Combined: 'blue',
             PortfolioItem: 'blue'
-        }
+        },
+        excludeWeekends:false
     },
     cycleTimeData: null,
     snapsByOid: {},
@@ -178,7 +179,8 @@ Ext.define('CycleCalculator', {
              }
          },this);
          
-         
+         this.logger.log('cycle_time_data',cycle_time_data);
+
          var series = [];
 
          if ( this.modelNames.length > 1 ) {
@@ -331,13 +333,18 @@ Ext.define('CycleCalculator', {
             if (state_index >= start_index && previous_state_index < start_index && start_index > -1){
                 start_date = Rally.util.DateTime.fromIsoString(snap._ValidFrom);  
             }
+            //console.log('settings >>',this.excludeWeekends);
 
             if (state_index >= end_index && previous_state_index < end_index){
                 end_date = Rally.util.DateTime.fromIsoString(snap._ValidFrom);
                 
+                // if (start_date != null){
+                //     seconds = Rally.util.DateTime.getDifference(end_date,start_date,"second");
+                //     days = Math.floor(seconds/86400) + 1;  
+                // }
                 if (start_date != null){
                     seconds = Rally.util.DateTime.getDifference(end_date,start_date,"second");
-                    days = Math.floor(seconds/86400) + 1;  
+                    days = Rally.technicalservices.util.Utilities.daysBetween(end_date,start_date,this.excludeWeekends);
                 }
                 include = this._snapMeetsFilterCriteria(snap);
             }
@@ -1143,6 +1150,184 @@ Ext.define('Rally.technicalservices.Toolbox',{
             return categories; 
     }
 });
+Ext.define('Rally.technicalservices.util.Utilities', {
+    singleton: true,
+    hashToArray: function(hash) {
+        var result = [];
+        for ( var key in hash ) {
+            result.push(hash[key]);
+        }
+        return result;
+    },
+    daysBetweenWithFraction: function(begin_date_js,end_date_js,skip_weekends){
+
+        var days_between = Rally.technicalservices.util.Utilities.daysBetween(begin_date_js, end_date_js, skip_weekends);
+
+        if ( typeof(begin_date_js) == "string" ) {
+           begin_date_js = Rally.util.DateTime.fromIsoString(begin_date_js);
+        }
+        if ( typeof(end_date_js) == "string" ) {
+            end_date_js = Rally.util.DateTime.fromIsoString(end_date_js);
+        }
+
+        var end_date_beginning_of_day = new Date(Ext.clone(end_date_js).setHours(0,0,0,0)),
+            begin_date_beginning_of_day = new Date(Ext.clone(begin_date_js).setHours(0,0,0,0)),
+            add_minutes = 0,
+            delta_minutes = 0;
+
+        if (this.isWeekday(end_date_js)) {
+            add_minutes = Rally.util.DateTime.getDifference(end_date_js, end_date_beginning_of_day, 'minute');
+        }
+        if (this.isWeekday(begin_date_js)) {
+            delta_minutes = Rally.util.DateTime.getDifference(begin_date_js, begin_date_beginning_of_day, 'minute');
+        }
+        var min = days_between * 1440 + add_minutes - delta_minutes;
+        if (min > 0){
+            min = Math.max(min/1440,0.01);
+        } else {
+            min = 0;
+        }
+        return Number(min.toFixed(2));
+    },
+    daysBetween: function(begin_date_js,end_date_js,skip_weekends){
+
+        if ( typeof(begin_date_js) == "string" ) {
+            begin_date_js = Rally.util.DateTime.fromIsoString(begin_date_js);
+        }
+        if ( typeof(end_date_js) == "string" ) {
+            end_date_js = Rally.util.DateTime.fromIsoString(end_date_js);
+        }
+        
+        var dDate1 = Ext.clone(begin_date_js).setHours(0,0,0,0);
+        var dDate2 = Ext.clone(end_date_js).setHours(0,0,0,0);
+        
+        if ( dDate1 == dDate2 ) { return 1; }
+        if (typeof dDate1 === "number") { dDate1 = new Date(dDate1); }
+        if (typeof dDate2 === "number") { dDate2 = new Date(dDate2); }
+            
+        if ( !skip_weekends ) {
+            return Math.abs( Rally.util.DateTime.getDifference(dDate1,dDate2,'day') );
+        } else {
+            // shift to the following Monday
+            if (!this.isWeekday(dDate1)) {
+                dDate1 = this.shiftDateToMonday(dDate1);
+            }
+            if (!this.isWeekday(dDate2)) {
+                dDate2 = this.shiftDateToMonday(dDate2);
+            }
+
+
+            // from the sOverflow
+            var iWeeks, iDateDiff, iAdjust = 0;
+            if (dDate2 < dDate1) 
+            { 
+                var x = dDate2;
+                dDate2 = dDate1;
+                dDate1 = x;
+            }
+            var iWeekday1 = dDate1.getDay(); // day of week
+            var iWeekday2 = dDate2.getDay();
+            iWeekday1 = (iWeekday1 == 0) ? 7 : iWeekday1; // change Sunday from 0 to 7
+            iWeekday2 = (iWeekday2 == 0) ? 7 : iWeekday2;
+            if ((iWeekday1 > 5) && (iWeekday2 > 5)) iAdjust = 1; // adjustment if both days on weekend
+            iWeekday1 = (iWeekday1 > 5) ? 5 : iWeekday1; // only count weekdays
+            iWeekday2 = (iWeekday2 > 5) ? 5 : iWeekday2;
+    
+            // calculate differnece in weeks (1000mS * 60sec * 60min * 24hrs * 7 days = 604800000)
+            iWeeks = Math.floor((dDate2.getTime() - dDate1.getTime()) / 604800000)
+    
+            if (iWeekday1 <= iWeekday2) {
+              iDateDiff = (iWeeks * 5) + (iWeekday2 - iWeekday1)
+            } else {
+              iDateDiff = ((iWeeks + 1) * 5) - (iWeekday1 - iWeekday2)
+            }
+    
+            iDateDiff -= iAdjust // take into account both days on weekend
+    
+            if ( iDateDiff < 1 ) { iDateDiff = 1; }
+            console.log(iDateDiff,begin_date_js,end_date_js);
+            return (iDateDiff); 
+        }
+    },
+
+    isWeekday: function(check_date) {
+        var weekday = true;
+        var day = check_date.getDay();
+        
+        if ( day === 0 || day === 6 ) {
+            weekday = false;
+        }
+        return weekday;
+    },
+    shiftDateToMonday: function(check_date) {
+        var day = check_date.getDay();
+        
+        var delta = 0;
+        
+        if ( day === 0 ) {
+            // it's Sunday
+            delta = 1;
+        }
+        if ( day === 6 ) {
+            delta = 2;
+        }
+        
+        var shifted_date = check_date;
+        if ( delta > 0 ) {
+            shifted_date = new Date(check_date.setHours(0));
+            shifted_date = Rally.util.DateTime.add(shifted_date,"day",delta);
+        }
+        return shifted_date;
+    },
+    /*
+     * compress size is the point at which to move to weeks instead of days
+     */
+    arrayOfDaysBetween: function(begin_date_js, end_date_js, skip_weekends, compress_size ) {
+        var the_array = [];
+        if ( typeof(begin_date_js) == "string" ) {
+            begin_date_js = Rally.util.DateTime.fromIsoString(begin_date_js);
+        }
+        if ( typeof(end_date_js) == "string" ) {
+            end_date_js = Rally.util.DateTime.fromIsoString(end_date_js);
+        }
+        if ( begin_date_js > end_date_js ) {
+            var swap_holder = end_date_js;
+            end_date_js = begin_date_js;
+            begin_date_js = swap_holder;
+        }
+                
+        var dDate1 = Ext.clone(begin_date_js).setHours(0,0,0,0);
+        var dDate2 = Ext.clone(end_date_js).setHours(0,0,0,0);
+        
+        var number_of_days = this.daysBetween(begin_date_js,end_date_js,skip_weekends);
+        
+        var add_value = 1;
+        var add_unit = 'day';
+        
+        if ( Ext.isNumber(compress_size) && number_of_days > compress_size ) {
+            add_value = 7;
+        }
+        
+        if ( number_of_days <= 2 ) {
+            add_value = 30;
+            add_unit = 'minute';
+            dDate2 = Ext.clone(end_date_js).setHours(23,59,0,0);
+        }
+       
+        
+        var check_date = new Date(dDate1);
+        
+        while (check_date <= dDate2) {
+            if ( !skip_weekends || this.isWeekday(check_date) || add_value === 7 || add_unit == 'minute' ) {
+                the_array.push(check_date);
+            }
+            check_date = Rally.util.DateTime.add(check_date,add_unit,add_value);
+        }
+        
+        return the_array;
+    }
+    
+});
 Ext.define('CustomApp', {
     extend: 'Rally.app.App',
     componentCls: 'app',
@@ -1157,6 +1342,7 @@ Ext.define('CustomApp', {
         {xtype:'container',itemId:'settings_box'},
         {xtype: 'container', itemId: 'type_selector_box', layout: {type: 'hbox'}},
         {xtype: 'container', itemId: 'value_selector_box', layout: {type: 'hbox'}},
+        {xtype: 'container', itemId: 'time_box', layout: {type: 'hbox'}},
         {xtype:'container',itemId:'button_box', layout: {type: 'hbox'}},
     //    {xtype:'container',itemId:'filter_box', layout: {type: 'vbox'}, title: 'Filter by', border: 1, style: {borderColor: 'gray', borderStyle: 'solid'}},
         {xtype:'container',itemId:'display_box'},
@@ -1396,17 +1582,20 @@ Ext.define('CustomApp', {
      * Called when the field is updated.  
      */
     _updateDropdowns: function(cb){
-        
+        var me = this;
         this.logger.log('_updateDropdowns', cb.getValue(), cb.getRecord());
         
         if (this.down('#cb-from-state')){
             this.down('#cb-date-range').destroy();
             this.down('#cb-from-state').destroy();
             this.down('#cb-to-state').destroy();
+            this.down('#cb-excludeWeekends').destroy();
             this.down('#cb-granularity').destroy();
+            this.down('#rb-time-box').destroy();
             this.down('#btn-update').destroy();
             this.down('#btn-filter').destroy();
             this.down('#btn-export').destroy();
+
         }
        
         var field = cb.getValue();
@@ -1438,6 +1627,16 @@ Ext.define('CustomApp', {
                 labelWidth: 50,
                 margin: 10
             });
+
+            this.down('#type_selector_box').add({
+                name: 'excludeWeekends',
+                itemId:'cb-excludeWeekends',
+                xtype: 'rallycheckboxfield',
+                boxLabelAlign: 'after',
+                fieldLabel: '',
+                margin: 10,
+                boxLabel: 'Exclude Weekends'
+            });
             
             var granularity_store = Ext.create('Rally.data.custom.Store', {
                 data: this.granularityStore
@@ -1459,7 +1658,7 @@ Ext.define('CustomApp', {
                 data: this.dateRangeStore
             });
 
-            this.down('#value_selector_box').add({
+            this.down('#time_box').add({
                 xtype: 'rallycombobox',
                 itemId: 'cb-date-range',
                 store: date_store,
@@ -1473,6 +1672,92 @@ Ext.define('CustomApp', {
                 margin: 10
             });
             
+            this.down('#value_selector_box').add({
+                xtype      : 'radiogroup',
+                fieldLabel : 'Select data for ',
+                itemId: 'rb-time-box',
+                defaults: {
+                    flex: 1
+                },
+                layout: 'hbox',
+                items: [
+                    {
+                        boxLabel  : 'Time Period ',
+                        name      : 'timebox',
+                        inputValue: 'T',
+                        id        : 'radio1',
+                        checked   : true,   
+                    }, {
+                        boxLabel  : 'Iteration ',
+                        name      : 'timebox',
+                        inputValue: 'I',
+                        id        : 'radio2'
+                    }, {
+                        boxLabel  : 'Release ',
+                        name      : 'timebox',
+                        inputValue: 'R',
+                        id        : 'radio3'
+                    }
+                ],
+                listeners:{
+                    change: function(rb){
+                        if(rb.lastValue.timebox == 'T'){
+                            me.down('#time_box').removeAll();
+                                me.down('#time_box').add({
+                                    xtype: 'rallycombobox',
+                                    itemId: 'cb-date-range',
+                                    store: date_store,
+                                    displayField: 'name',
+                                    valueField: 'value',
+                                    fieldLabel:  'Date Range',
+                                    labelAlign: 'right',
+                                    labelWidth: 65,
+                                    width: 250,
+                                    value: this.defaultDateRange,
+                                    margin: 10
+                                });
+                                
+                        }else if(rb.lastValue.timebox == 'I'){
+                                //console.log('me>>',me);
+                                me.down('#time_box').removeAll();
+                                me.down('#time_box').add({
+                                    xtype: 'rallyiterationcombobox',
+                                    fieldLabel: 'Iteration: ',
+                                    labelAlign: 'right',
+                                    minWidth: 300,
+                                    listeners: {
+                                        scope: me,
+                                        select: function(icb){
+                                            me._getReleaseOrIterationOids(icb);
+                                        },
+                                        ready: function(icb){
+                                            me._getReleaseOrIterationOids(icb);
+                                        }
+                                    }
+                                });
+
+                        }else if(rb.lastValue.timebox == 'R'){
+                                me.down('#time_box').removeAll();
+                                me.down('#time_box').add({
+                                    xtype: 'rallyreleasecombobox',
+                                    fieldLabel: 'Release: ',
+                                    labelAlign: 'right',
+                                    minWidth: 300,
+                                    listeners: {
+                                        scope: me,
+                                        select: function(icb){
+                                            me._getReleaseOrIterationOids(icb);
+                                        },
+                                        ready: function(icb){
+                                            me._getReleaseOrIterationOids(icb);
+                                        }
+                                    }
+                                });
+                        }
+                    }
+                }
+        });
+
             var button_width = 75; 
             this.down('#value_selector_box').add({
                 xtype: 'rallybutton',
@@ -1521,14 +1806,122 @@ Ext.define('CustomApp', {
         return state;
     },
 
+    _getReleaseOrIterationOids: function(cb) {
+        var me = this;
+        me.logger.log('_getReleaseOrIterationOids',cb);
+        me.timeboxValue = cb;
+        Deft.Chain.parallel([
+                me._getReleasesOrIterations
+        ],me).then({
+            scope: me,
+            success: function(results) {
+                me.logger.log('Results:',results);
+                
+                me.timebox_oids = Ext.Array.map(results[0], function(timebox) {
+                    return timebox.get('ObjectID');
+                });
+            },
+            failure: function(msg) {
+                Ext.Msg.alert('Problem Loading Timebox data', msg);
+            }
+        });
+    },
+
+
+    _getReleasesOrIterations:function(){
+        var deferred = Ext.create('Deft.Deferred');
+        var me = this;
+        this.logger.log('_getReleasesOrIterations>>',me.timeboxValue);
+
+        var timeboxModel = '';
+        var filters = [];
+
+        if(me.timeboxValue.name == 'Iteration'){
+            timeboxModel = 'Iteration';
+            filters =         [        {
+                    property: 'Name',
+                    operator: '=',
+                    value: me.timeboxValue.getRecord().get('Name')
+                },
+                {
+                    property: 'StartDate',
+                    operator: '=',
+                    value: me.timeboxValue.getRecord().get('StartDate').toISOString()
+                },
+                {
+                    property: 'EndDate',
+                    operator: '=',
+                    value: me.timeboxValue.getRecord().get('EndDate').toISOString()
+                }
+            ];
+        }else if(me.timeboxValue.name == 'Release'){
+            timeboxModel = 'Release';  
+            filters =         [        {
+                    property: 'Name',
+                    operator: '=',
+                    value: me.timeboxValue.getRecord().get('Name')
+                },
+                {
+                    property: 'ReleaseStartDate',
+                    operator: '=',
+                    value: me.timeboxValue.getRecord().get('ReleaseStartDate').toISOString()
+                },
+                {
+                    property: 'ReleaseDate',
+                    operator: '=',
+                    value: me.timeboxValue.getRecord().get('ReleaseDate').toISOString()
+                }
+            ];
+        }
+
+        Ext.create('Rally.data.wsapi.Store', {
+            model: timeboxModel,
+            fetch: ['ObjectID'],
+            filters: Rally.data.wsapi.Filter.and(filters)
+        }).load({
+            callback : function(records, operation, successful) {
+                if (successful){
+                    //console.log('records',records,'operation',operation,'successful',successful);
+                    deferred.resolve(records);
+                } else {
+                    me.logger.log("Failed: ", operation);
+                    deferred.reject('Problem loading: ' + operation.error.errors.join('. '));
+                }
+            }
+        });
+        return deferred.promise;
+    },
+
+
     _createChart: function(){
+        var me = this;
         var field = this.down('#cb-field').getValue();
         var granularity_rec = this.down('#cb-granularity').getRecord();
         var granularity = granularity_rec.get('value');  
-        var end_date = new Date(); 
-        
-        var date_range = this.down('#cb-date-range').getValue();
-        var start_date = Rally.util.DateTime.add(new Date(),"month",date_range);
+        var start_date,end_date = new Date(); 
+        var excludeWeekends = me.down('#cb-excludeWeekends').value;
+                    
+        me.logger.log('Timebox value >>',me.timeboxValue);
+
+        if(this.down('#rb-time-box').getValue().timebox == 'I'){
+            // find["Iteration"] = { '$in': this.timebox_oids };
+            if(me.timeboxValue){
+                start_date = new Date(me.timeboxValue.getRecord().get('StartDate'));
+                end_date = new Date(me.timeboxValue.getRecord().get('EndDate'));
+            }
+        }else if(this.down('#rb-time-box').getValue().timebox == 'R'){
+            // find["Release"] = { '$in': this.timebox_oids };
+            if(me.timeboxValue){
+                start_date = new Date(me.timeboxValue.getRecord().get('ReleaseStartDate'));
+                end_date = new Date(me.timeboxValue.getRecord().get('ReleaseDate'));
+            }
+        }else{
+            var date_range = this.down('#cb-date-range').getValue();
+            start_date = Rally.util.DateTime.add(new Date(),"month",date_range);
+        }
+
+        me.logger.log('Dates Before running calculator>>',start_date,end_date);
+
         var start_state = this._getStartState();
         var filters = this.dataFilters;  
         
@@ -1556,7 +1949,8 @@ Ext.define('CustomApp', {
                     granularity: granularity,
                     dateFormat: granularity_rec.get('dateFormat'),
                     dataFilters: filters,
-                    percentileLineThreshold: this.getSetting('percentileLineThreshold')
+                    percentileLineThreshold: this.getSetting('percentileLineThreshold'),
+                    excludeWeekends:excludeWeekends
                 });
                 this.setLoading(false);
                 var chart_data = calc.runCalculation(snapshots);
@@ -1759,6 +2153,9 @@ Ext.define('CustomApp', {
         var field = this.down('#cb-field').getValue();
         var fetch = this._getFetchFields();
         this.logger.log('_getStoreConfig', type, field, fetch);
+
+        var rb = this.down('#rb-time-box');
+        console.log('>>>>>>>>>>>',rb)
         var find = {
                 "Children": null,
                 "_TypeHierarchy": type
@@ -1769,6 +2166,14 @@ Ext.define('CustomApp', {
         } else {
             find["Project"]= this.getContext().getProject().ObjectID;
         }
+        
+        if(rb && rb.lastValue.timebox == 'I'){
+            find["Iteration"] = { '$in': this.timebox_oids };
+        }else if(rb && rb.lastValue.timebox == 'R'){
+            find["Release"] = { '$in': this.timebox_oids };
+        }
+
+
         var store_config ={
              find: find,
              fetch: fetch,

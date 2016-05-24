@@ -18,7 +18,8 @@ Ext.define('CycleCalculator', {
             HierarchicalRequirement: 'green',
             Combined: 'blue',
             PortfolioItem: 'blue'
-        }
+        },
+        excludeWeekends:false
     },
     cycleTimeData: null,
     snapsByOid: {},
@@ -38,7 +39,8 @@ Ext.define('CycleCalculator', {
              }
          },this);
          
-         
+         this.logger.log('cycle_time_data',cycle_time_data);
+
          var series = [];
 
          if ( this.modelNames.length > 1 ) {
@@ -191,14 +193,26 @@ Ext.define('CycleCalculator', {
             if (state_index >= start_index && previous_state_index < start_index && start_index > -1){
                 start_date = Rally.util.DateTime.fromIsoString(snap._ValidFrom);  
             }
+<<<<<<< HEAD
+            //console.log('settings >>',this.excludeWeekends);
+
+            if (state_index >= end_index && previous_state_index < end_index){
+                end_date = Rally.util.DateTime.fromIsoString(snap._ValidFrom);
+                
+                // if (start_date != null){
+                //     seconds = Rally.util.DateTime.getDifference(end_date,start_date,"second");
+                //     days = Math.floor(seconds/86400) + 1;  
+                // }
+=======
             if (state_index >= end_index && previous_state_index < end_index){
                 end_date = Rally.util.DateTime.fromIsoString(snap._ValidFrom);
 
                 console.log('fred',start_date, end_date, snap.FormattedID, include, days);
 
+>>>>>>> RallyTechServices/master
                 if (start_date != null){
                     seconds = Rally.util.DateTime.getDifference(end_date,start_date,"second");
-                    days = Math.floor(seconds/86400) + 1;  
+                    days = Rally.technicalservices.util.Utilities.daysBetween(end_date,start_date,this.excludeWeekends);
                 }
                 include = this._snapMeetsFilterCriteria(snap);
             }
