@@ -27,8 +27,7 @@ Ext.define('CustomApp', {
         defaultSettings: {
             cycleStateFields:  "ScheduleState",
             modelNames: ['HierarchicalRequirement','Defect'],
-            percentileLineThreshold: 85,
-            excludeWeekends:false
+            percentileLineThreshold: 85
         }
     },
     defaultField: 'ScheduleState',
@@ -260,6 +259,7 @@ Ext.define('CustomApp', {
             this.down('#cb-date-range').destroy();
             this.down('#cb-from-state').destroy();
             this.down('#cb-to-state').destroy();
+            this.down('#cb-excludeWeekends').destroy();
             this.down('#cb-granularity').destroy();
             this.down('#rb-time-box').destroy();
             this.down('#btn-update').destroy();
@@ -296,6 +296,16 @@ Ext.define('CustomApp', {
                 labelAlign: 'right',
                 labelWidth: 50,
                 margin: 10
+            });
+
+            this.down('#type_selector_box').add({
+                name: 'excludeWeekends',
+                itemId:'cb-excludeWeekends',
+                xtype: 'rallycheckboxfield',
+                boxLabelAlign: 'after',
+                fieldLabel: '',
+                margin: 10,
+                boxLabel: 'Exclude Weekends'
             });
             
             var granularity_store = Ext.create('Rally.data.custom.Store', {
@@ -389,6 +399,9 @@ Ext.define('CustomApp', {
                                         scope: me,
                                         select: function(icb){
                                             me._getReleaseOrIterationOids(icb);
+                                        },
+                                        ready: function(icb){
+                                            me._getReleaseOrIterationOids(icb);
                                         }
                                     }
                                 });
@@ -403,6 +416,9 @@ Ext.define('CustomApp', {
                                     listeners: {
                                         scope: me,
                                         select: function(icb){
+                                            me._getReleaseOrIterationOids(icb);
+                                        },
+                                        ready: function(icb){
                                             me._getReleaseOrIterationOids(icb);
                                         }
                                     }
@@ -553,7 +569,10 @@ Ext.define('CustomApp', {
         var granularity_rec = this.down('#cb-granularity').getRecord();
         var granularity = granularity_rec.get('value');  
         var start_date,end_date = new Date(); 
-        
+        var excludeWeekends = me.down('#cb-excludeWeekends').value;
+                    
+        me.logger.log('Timebox value >>',me.timeboxValue);
+
         if(this.down('#rb-time-box').getValue().timebox == 'I'){
             // find["Iteration"] = { '$in': this.timebox_oids };
             if(me.timeboxValue){
@@ -570,6 +589,8 @@ Ext.define('CustomApp', {
             var date_range = this.down('#cb-date-range').getValue();
             start_date = Rally.util.DateTime.add(new Date(),"month",date_range);
         }
+
+        me.logger.log('Dates Before running calculator>>',start_date,end_date);
 
         var start_state = this._getStartState();
         var filters = this.dataFilters;  
@@ -599,7 +620,7 @@ Ext.define('CustomApp', {
                     dateFormat: granularity_rec.get('dateFormat'),
                     dataFilters: filters,
                     percentileLineThreshold: this.getSetting('percentileLineThreshold'),
-                    excludeWeekends:this.getSetting('excludeWeekends')
+                    excludeWeekends:excludeWeekends
                 });
                 this.setLoading(false);
                 var chart_data = calc.runCalculation(snapshots);
@@ -802,6 +823,9 @@ Ext.define('CustomApp', {
         var field = this.down('#cb-field').getValue();
         var fetch = this._getFetchFields();
         this.logger.log('_getStoreConfig', type, field, fetch);
+
+        var rb = this.down('#rb-time-box');
+        console.log('>>>>>>>>>>>',rb)
         var find = {
                 "Children": null,
                 "_TypeHierarchy": type
@@ -812,6 +836,14 @@ Ext.define('CustomApp', {
         } else {
             find["Project"]= this.getContext().getProject().ObjectID;
         }
+        
+        if(rb && rb.lastValue.timebox == 'I'){
+            find["Iteration"] = { '$in': this.timebox_oids };
+        }else if(rb && rb.lastValue.timebox == 'R'){
+            find["Release"] = { '$in': this.timebox_oids };
+        }
+
+
         var store_config ={
              find: find,
              fetch: fetch,
@@ -902,13 +934,6 @@ Ext.define('CustomApp', {
                     }
                 },
                 readyEvent: 'ready'
-            },{
-                name: 'excludeWeekends',
-                xtype: 'rallycheckboxfield',
-                boxLabelAlign: 'after',
-                fieldLabel: '',
-                margin: '0 0 25 200',
-                boxLabel: 'Exclude Weekends<br/><span style="color:#999999;"><i>Tick to Exclude Weekends on the chart</i></span>'
             }
         ];
     },
