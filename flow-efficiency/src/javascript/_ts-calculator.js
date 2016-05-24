@@ -257,9 +257,6 @@ Ext.define('CycleCalculator', {
                         var efficiency = (adjusted_cycle_time/cdata.seconds) * 100;
                         series_raw_data[i].push(efficiency);
                     }
-                    if (date_buckets[i] > new Date("03/31/2015")){
-                        console.log('efficiency date, cycle, blocked, ready',efficiency, date_buckets[i],cdata.seconds, cdata.blockedTime, cdata.readyTime);
-                    }
                     //series_raw_data[i].push(efficiency);
                 }
             }
