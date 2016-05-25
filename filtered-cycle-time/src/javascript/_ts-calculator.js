@@ -18,7 +18,8 @@ Ext.define('CycleCalculator', {
             HierarchicalRequirement: 'green',
             Combined: 'blue',
             PortfolioItem: 'blue'
-        }
+        },
+        excludeWeekends:false
     },
     cycleTimeData: null,
     snapsByOid: {},
@@ -198,7 +199,8 @@ Ext.define('CycleCalculator', {
 
                 if (start_date != null){
                     seconds = Rally.util.DateTime.getDifference(end_date,start_date,"second");
-                    days = Math.floor(seconds/86400) + 1;  
+                    //days = Math.floor(seconds/86400) + 1;  
+                    days = Rally.technicalservices.util.Utilities.daysBetween(end_date,start_date,this.excludeWeekends);
                 }
                 include = this._snapMeetsFilterCriteria(snap);
             }
