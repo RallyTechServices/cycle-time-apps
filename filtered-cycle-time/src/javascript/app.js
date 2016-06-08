@@ -349,24 +349,28 @@ Ext.define('CustomApp', {
                 defaults: {
                     flex: 1
                 },
+                margin: '10 5 5 25',
                 layout: 'hbox',
                 items: [
                     {
-                        boxLabel  : 'Time Period ',
+                        boxLabel  : 'Time Period',
                         name      : 'timebox',
                         inputValue: 'T',
                         id        : 'radio1',
-                        checked   : true,   
+                        checked   : true,
+                        margin: '0 0 0 10'   
                     }, {
-                        boxLabel  : 'Iteration ',
+                        boxLabel  : 'Iteration',
                         name      : 'timebox',
                         inputValue: 'I',
-                        id        : 'radio2'
+                        id        : 'radio2',
+                        margin: '0 0 0 10'
                     }, {
-                        boxLabel  : 'Release ',
+                        boxLabel  : 'Release',
                         name      : 'timebox',
                         inputValue: 'R',
-                        id        : 'radio3'
+                        id        : 'radio3',
+                        margin: '0 0 0 10'
                     }
                 ],
                 listeners:{
@@ -380,7 +384,6 @@ Ext.define('CustomApp', {
                                     displayField: 'name',
                                     valueField: 'value',
                                     fieldLabel:  'Date Range',
-                                    labelAlign: 'right',
                                     labelWidth: 65,
                                     width: 250,
                                     value: this.defaultDateRange,
@@ -392,9 +395,9 @@ Ext.define('CustomApp', {
                                 me.down('#time_box').removeAll();
                                 me.down('#time_box').add({
                                     xtype: 'rallyiterationcombobox',
-                                    fieldLabel: 'Iteration: ',
-                                    labelAlign: 'right',
+                                    fieldLabel: 'Iteration:',
                                     minWidth: 300,
+                                    margin: 10,
                                     listeners: {
                                         scope: me,
                                         select: function(icb){
@@ -410,9 +413,9 @@ Ext.define('CustomApp', {
                                 me.down('#time_box').removeAll();
                                 me.down('#time_box').add({
                                     xtype: 'rallyreleasecombobox',
-                                    fieldLabel: 'Release: ',
-                                    labelAlign: 'right',
+                                    fieldLabel: 'Release:',
                                     minWidth: 300,
+                                    margin: 10,
                                     listeners: {
                                         scope: me,
                                         select: function(icb){

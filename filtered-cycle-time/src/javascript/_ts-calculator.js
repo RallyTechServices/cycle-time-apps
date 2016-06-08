@@ -199,8 +199,11 @@ Ext.define('CycleCalculator', {
 
                 if (start_date != null){
                     seconds = Rally.util.DateTime.getDifference(end_date,start_date,"second");
-                    //days = Math.floor(seconds/86400) + 1;  
-                    days = Rally.technicalservices.util.Utilities.daysBetween(end_date,start_date,this.excludeWeekends);
+                    if(this.excludeWeekends){
+                        days = Math.floor(seconds/86400) + 1;  
+                    }else{
+                        days = Rally.technicalservices.util.Utilities.daysBetween(start_date,end_date,this.excludeWeekends);
+                    }
                 }
                 include = this._snapMeetsFilterCriteria(snap);
             }
