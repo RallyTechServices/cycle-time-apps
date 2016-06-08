@@ -3,11 +3,11 @@
 <head>
     <title>Filtered Cycle Time</title>
     <!--  (c) 2014 Rally Software Development Corp.  All Rights Reserved. -->
-    <!--  Build Date: Tue May 24 2016 20:03:08 GMT-0400 (EDT) -->
+    <!--  Build Date: Wed Jun 08 2016 12:30:59 GMT-0400 (EDT) -->
     
     <script type="text/javascript">
-        var APP_BUILD_DATE = "Tue May 24 2016 20:03:08 GMT-0400 (EDT)";
-        var CHECKSUM = 122822019066;
+        var APP_BUILD_DATE = "Wed Jun 08 2016 12:30:59 GMT-0400 (EDT)";
+        var CHECKSUM = 123445556743;
     </script>
     
     <script type="text/javascript" src="/apps/2.0/sdk.js"></script>
@@ -339,8 +339,11 @@ Ext.define('CycleCalculator', {
 
                 if (start_date != null){
                     seconds = Rally.util.DateTime.getDifference(end_date,start_date,"second");
-                    //days = Math.floor(seconds/86400) + 1;  
-                    days = Rally.technicalservices.util.Utilities.daysBetween(end_date,start_date,this.excludeWeekends);
+                    if(this.excludeWeekends){
+                        days = Math.floor(seconds/86400) + 1;  
+                    }else{
+                        days = Rally.technicalservices.util.Utilities.daysBetween(start_date,end_date,this.excludeWeekends);
+                    }
                 }
                 include = this._snapMeetsFilterCriteria(snap);
             }
@@ -1203,7 +1206,8 @@ Ext.define('Rally.technicalservices.util.Utilities', {
         if (typeof dDate2 === "number") { dDate2 = new Date(dDate2); }
             
         if ( !skip_weekends ) {
-            return Math.abs( Rally.util.DateTime.getDifference(dDate1,dDate2,'day') );
+            //changing the calculation (rounding up) to match previous version of app
+            return Math.floor(Math.abs( Rally.util.DateTime.getDifference(dDate1,dDate2,'second') ) / 86400 ) + 1;
         } else {
             // shift to the following Monday
             if (!this.isWeekday(dDate1)) {
@@ -1676,24 +1680,28 @@ Ext.define('CustomApp', {
                 defaults: {
                     flex: 1
                 },
+                margin: '10 5 5 25',
                 layout: 'hbox',
                 items: [
                     {
-                        boxLabel  : 'Time Period ',
+                        boxLabel  : 'Time Period',
                         name      : 'timebox',
                         inputValue: 'T',
                         id        : 'radio1',
-                        checked   : true,   
+                        checked   : true,
+                        margin: '0 0 0 10'   
                     }, {
-                        boxLabel  : 'Iteration ',
+                        boxLabel  : 'Iteration',
                         name      : 'timebox',
                         inputValue: 'I',
-                        id        : 'radio2'
+                        id        : 'radio2',
+                        margin: '0 0 0 10'
                     }, {
-                        boxLabel  : 'Release ',
+                        boxLabel  : 'Release',
                         name      : 'timebox',
                         inputValue: 'R',
-                        id        : 'radio3'
+                        id        : 'radio3',
+                        margin: '0 0 0 10'
                     }
                 ],
                 listeners:{
@@ -1707,7 +1715,6 @@ Ext.define('CustomApp', {
                                     displayField: 'name',
                                     valueField: 'value',
                                     fieldLabel:  'Date Range',
-                                    labelAlign: 'right',
                                     labelWidth: 65,
                                     width: 250,
                                     value: this.defaultDateRange,
@@ -1719,9 +1726,9 @@ Ext.define('CustomApp', {
                                 me.down('#time_box').removeAll();
                                 me.down('#time_box').add({
                                     xtype: 'rallyiterationcombobox',
-                                    fieldLabel: 'Iteration: ',
-                                    labelAlign: 'right',
+                                    fieldLabel: 'Iteration:',
                                     minWidth: 300,
+                                    margin: 10,
                                     listeners: {
                                         scope: me,
                                         select: function(icb){
@@ -1737,9 +1744,9 @@ Ext.define('CustomApp', {
                                 me.down('#time_box').removeAll();
                                 me.down('#time_box').add({
                                     xtype: 'rallyreleasecombobox',
-                                    fieldLabel: 'Release: ',
-                                    labelAlign: 'right',
+                                    fieldLabel: 'Release:',
                                     minWidth: 300,
+                                    margin: 10,
                                     listeners: {
                                         scope: me,
                                         select: function(icb){
